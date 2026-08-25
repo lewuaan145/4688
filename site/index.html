@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Công cụ cửa hàng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F1F5EE;
+  --ink: #1E2A22;
+  --ink-soft: #55614F;
+  --muted: #8A9284;
+  --card: #FFFFFF;
+  --border: #E1E8DA;
+  --accent: #E2596B;
+  --accent-soft: #FBE3E6;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(30, 42, 34, 0.06), 0 4px 14px rgba(30, 42, 34, 0.05);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 640px; margin: 0 auto; padding: 28px 18px 40px; }
+header { text-align: center; margin-bottom: 26px; }
+header h1 { font-family: 'Manrope', sans-serif; font-size: 22px; font-weight: 800; margin: 0 0 6px; }
+header p { color: var(--muted); font-size: 13.5px; margin: 0; }
+.menu { display: flex; flex-direction: column; gap: 14px; }
+a.card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  text-decoration: none;
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+a.card:active { background: var(--bg); }
+.icon {
+  width: 46px; height: 46px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.card-text h2 { font-family: 'Manrope', sans-serif; font-size: 16px; font-weight: 700; margin: 0 0 3px; }
+.card-text p { margin: 0; font-size: 12.5px; color: var(--muted); }
+.chev { margin-left: auto; color: var(--muted); font-size: 18px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Công cụ cửa hàng</h1>
+    <p>Chọn danh mục cần dùng</p>
+  </header>
+
+  <div class="menu">
+    <a class="card" href="ban-giao/">
+      <span class="icon">📋</span>
+      <span class="card-text">
+        <h2>Bàn giao</h2>
+        <p>Công việc hằng ngày, CTKM, deadline, phát sinh</p>
+      </span>
+      <span class="chev">›</span>
+    </a>
+
+    <a class="card" href="tra-cuu-ctkm/">
+      <span class="icon">🔍</span>
+      <span class="card-text">
+        <h2>Tra cứu CTKM &amp; Tồn kho</h2>
+        <p>Tra chương trình khuyến mãi và tồn kho theo mã hàng</p>
+      </span>
+      <span class="chev">›</span>
+    </a>
+
+    <a class="card" href="kiem-ke/">
+      <span class="icon">📦</span>
+      <span class="card-text">
+        <h2>Kiểm kê hàng hoá</h2>
+        <p>Kiểm kê offline, quét mã vạch</p>
+      </span>
+      <span class="chev">›</span>
+    </a>
+  </div>
+</div>
+</body>
+</html>
