@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
 <title>Tra cứu CTKM &amp; Tồn kho</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/quagga.min.js"></script>
 <style>
   :root{
     --ink:#152238;
@@ -119,6 +119,12 @@
   }
   .filter-row-2{display:flex;gap:8px;}
   .filter-row-2 select{flex:1;min-width:0;font-size:12.5px;}
+  .export-btn{
+    width:100%;display:flex;align-items:center;justify-content:center;gap:7px;
+    background:var(--mint);color:#fff;border:none;border-radius:12px;
+    padding:12px 10px;font-weight:800;font-size:13px;margin-bottom:12px;
+  }
+  .export-btn:active{opacity:.85;}
 
   /* ---- empty state ---- */
   .empty{
@@ -274,6 +280,7 @@
       <select id="startDateFilter"><option value="">Tất cả ngày bắt đầu</option></select>
       <select id="endDateFilter"><option value="">Tất cả ngày kết thúc</option></select>
     </div>
+    <button class="export-btn" id="exportGiftBtn" style="display:none;">📤 Xuất file tồn kho quà tặng (nguyên tháng)</button>
     <div class="promo-list" id="promoList"></div>
   </section>
 
@@ -660,17 +667,22 @@ function renderCtkmTab(){
     listWrap.appendChild(el("div","empty","Chưa có dữ liệu CTKM.<br><b>Hãy tải file CTKM tháng</b> ở phía trên."));
     $("#banners").innerHTML = "";
     $("#categoryFilterRow").style.display = "none";
+    $("#dateFilterRow").style.display = "none";
+    $("#exportGiftBtn").style.display = "none";
     return;
   }
   if(!store){
     listWrap.appendChild(el("div","empty","Vui lòng <b>chọn tên cửa hàng</b> ở phía trên để xem CTKM áp dụng."));
     $("#banners").innerHTML = "";
     $("#categoryFilterRow").style.display = "none";
+    $("#dateFilterRow").style.display = "none";
+    $("#exportGiftBtn").style.display = "none";
     return;
   }
 
   refreshCategoryOptions();
   refreshDateFilterOptions();
+  $("#exportGiftBtn").style.display = "";
   const category = $("#categoryFilter").value;
   const startFilter = $("#startDateFilter").value;
   const endFilter = $("#endDateFilter").value;
@@ -991,6 +1003,60 @@ $("#scanInput").onchange = async (e)=>{
   }
   e.target.value = "";
 };
+
+/* ============ XUẤT FILE TỒN KHO QUÀ TẶNG (NGUYÊN THÁNG) ============ */
+function exportGiftInventory(){
+  const store = state.selectedStore;
+  if(!state.ctkm || !store) return;
+  if(!state.tonkho){
+    alert("Chưa tải file Tồn kho — ngành hàng và số tồn của quà tặng cần dữ liệu từ file này. Hãy tải file Tồn kho trước rồi xuất lại.");
+    return;
+  }
+
+  const applicable = getApplicablePromos(store); // toàn bộ CTKM áp dụng cho CH, nguyên tháng (không giới hạn ngày)
+  const dedup = new Map(); // key: mã SP (hoặc mã tham chiếu nếu thiếu mã SP) -> row
+
+  applicable.forEach(p=>{
+    const details = state.ctkm.detailMap.get(p.key) || [];
+    details.forEach(d=>{
+      if(!d.giftMa && !d.giftThamChieu) return;
+      const invGift = findInventory(d.giftMa, d.giftThamChieu);
+      const maThamChieuReal = (invGift && invGift.maThamChieu) || d.giftThamChieu || "";
+      const key = d.giftMa || maThamChieuReal;
+      if(!key || dedup.has(key)) return; // đã lọc trùng SP
+      dedup.set(key, {
+        "Ngành hàng cấp 1": (invGift && invGift.nganhCap1) || "", // ngành hàng của CHÍNH quà tặng, không phải của SP áp dụng CT
+        "Mã SP": d.giftMa || "",
+        "Mã tham chiếu": maThamChieuReal,
+        "Tên SP": (invGift && invGift.tenSP) || d.giftTen || "",
+        "Tồn kho": invGift ? invGift.soLuong : ""
+      });
+    });
+  });
+
+  if(dedup.size===0){
+    alert("Không có sản phẩm quà tặng nào để xuất cho cửa hàng này.");
+    return;
+  }
+
+  const rows = Array.from(dedup.values()).sort((a,b)=>{
+    const c = (a["Ngành hàng cấp 1"]||"").localeCompare(b["Ngành hàng cấp 1"]||"",'vi');
+    if(c!==0) return c;
+    return (a["Tên SP"]||"").localeCompare(b["Tên SP"]||"",'vi');
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows, {header:["Ngành hàng cấp 1","Mã SP","Mã tham chiếu","Tên SP","Tồn kho"]});
+  ws['!cols'] = [{wch:20},{wch:16},{wch:16},{wch:40},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "TonKho QuaTang");
+
+  const d = new Date();
+  const p2 = n=>String(n).padStart(2,"0");
+  const safeStore = store.replace(/[\\\/:*?"<>|]/g,"-");
+  const fileName = `TonKho_QuaTang_${safeStore}_${p2(d.getDate())}${p2(d.getMonth()+1)}${d.getFullYear()}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+$("#exportGiftBtn").onclick = exportGiftInventory;
 
 /* ============ INIT ============ */
 (function init(){
