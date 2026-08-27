@@ -303,10 +303,21 @@
 <div class="modal-overlay" id="scanOverlay">
   <div class="modal">
     <h3>Quét mã vạch sản phẩm</h3>
-    <p class="hint">Chụp ảnh mã vạch — hệ thống sẽ tự nhận diện và tra tồn kho tại cửa hàng đang chọn.</p>
+    <p class="hint">Bật camera để quét liên tục, hoặc chụp ảnh / nhập mã thủ công.</p>
+
+    <div id="scanLiveWrap" style="display:none;position:relative;border-radius:12px;overflow:hidden;background:#000;margin-bottom:10px;">
+      <video id="scanVideo" autoplay playsinline muted style="width:100%;display:block;max-height:260px;object-fit:cover;"></video>
+      <div style="position:absolute;left:10%;right:10%;top:38%;bottom:38%;border:2px solid #33e07a;border-radius:8px;pointer-events:none;"></div>
+    </div>
+
+    <button class="scan-photo-btn" id="toggleLiveScan" type="button" style="width:100%;border:none;cursor:pointer;">
+      <span class="ic">🎥</span>
+      <span id="toggleLiveScanLabel">Bật camera quét</span>
+    </button>
+
     <label class="scan-photo-btn" id="scanPhotoBtn">
       <span class="ic">📷</span>
-      <span>Chụp ảnh mã vạch</span>
+      <span>Hoặc chụp 1 ảnh mã vạch</span>
       <input type="file" accept="image/*" capture="environment" id="scanInput" style="display:none;">
     </label>
     <div class="scan-status" id="scanStatus"></div>
@@ -527,14 +538,27 @@ function loadTonKhoCache(){
 const STORE_PREF_KEY = "selected_store_v1";
 const CATEGORY_PREF_KEY = "selected_category_v1";
 
-/* Tra tồn kho theo mã SP hoặc mã tham chiếu, tại cửa hàng đang chọn */
+/* Chỉ mục tra nhanh tồn kho theo (cửa hàng + mã) — tránh quét tuyến tính toàn bộ
+   hàng ngàn dòng tồn kho mỗi lần tra 1 mã (đây là nguyên nhân chính gây lọc/tìm bị đơ). */
+function buildInventoryIndex(rows){
+  const bySP = new Map(), byRef = new Map();
+  rows.forEach(r=>{
+    if(r.maSP) bySP.set(r.store+"|"+r.maSP, r);
+    if(r.maThamChieu) byRef.set(r.store+"|"+r.maThamChieu, r);
+  });
+  return { bySP, byRef };
+}
+
+/* Tra tồn kho theo mã SP hoặc mã tham chiếu, tại cửa hàng đang chọn — O(1) qua index */
 function findInventory(maSP, maThamChieu){
   if(!state.tonkho || !state.selectedStore) return null;
   if(!maSP && !maThamChieu) return null;
-  return state.tonkho.rows.find(r =>
-    r.store===state.selectedStore &&
-    ((maSP && r.maSP===maSP) || (maThamChieu && r.maThamChieu===maThamChieu))
-  ) || null;
+  const idx = state.tonkhoIndex;
+  if(!idx) return null;
+  const store = state.selectedStore;
+  if(maSP){ const hit = idx.bySP.get(store+"|"+maSP); if(hit) return hit; }
+  if(maThamChieu){ const hit = idx.byRef.get(store+"|"+maThamChieu); if(hit) return hit; }
+  return null;
 }
 
 /* ============ STORE SELECT ============ */
@@ -618,12 +642,22 @@ function promoMatchesSearch(p, q){
   });
 }
 
+/* Bộ lọc liên động: chọn 1 ô lọc sẽ thu hẹp danh sách của các ô lọc còn lại,
+   chỉ hiện những lựa chọn thật sự còn CTKM tương ứng — tránh chọn xong ra danh
+   sách rỗng. */
 let categoryRestored = false;
 function refreshCategoryOptions(){
   const row = $("#categoryFilterRow");
   const sel = $("#categoryFilter");
   if(!state.ctkm || !state.selectedStore){ row.style.display="none"; return; }
-  const cats = new Set(getApplicablePromos(state.selectedStore).map(p=>p.nganhHang).filter(Boolean));
+
+  const startFilter = $("#startDateFilter").value;
+  const endFilter = $("#endDateFilter").value;
+  const pool = getApplicablePromos(state.selectedStore).filter(p =>
+    (!startFilter || fmtDate(p.batDau)===startFilter) &&
+    (!endFilter || fmtDate(p.ketThuc)===endFilter)
+  );
+  const cats = new Set(pool.map(p=>p.nganhHang).filter(Boolean));
   const sorted = Array.from(cats).sort((a,b)=>a.localeCompare(b,'vi'));
   let prev = sel.value;
   if(!categoryRestored){
@@ -641,7 +675,11 @@ function refreshDateFilterOptions(){
   const selStart = $("#startDateFilter");
   const selEnd = $("#endDateFilter");
   if(!state.ctkm || !state.selectedStore){ row.style.display="none"; return; }
-  const applicable = getApplicablePromos(state.selectedStore);
+
+  const category = $("#categoryFilter").value;
+  const applicable = getApplicablePromos(state.selectedStore).filter(p =>
+    !category || p.nganhHang===category
+  );
   const starts = new Map(), ends = new Map(); // fmtDate string -> Date (để sort đúng thứ tự thời gian)
   applicable.forEach(p=>{
     if(p.batDau) starts.set(fmtDate(p.batDau), p.batDau);
@@ -884,7 +922,11 @@ $("#storeSelect").onchange = (e)=>{
   try{ localStorage.setItem(STORE_PREF_KEY, state.selectedStore); }catch(err){}
   if(state.tab==="ctkm") renderCtkmTab(); else renderTonKhoTab();
 };
-$("#searchCtkm").oninput = ()=>renderCtkmTab();
+let searchDebounceTimer = null;
+$("#searchCtkm").oninput = ()=>{
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(renderCtkmTab, 250);
+};
 $("#categoryFilter").onchange = (e)=>{
   try{ localStorage.setItem(CATEGORY_PREF_KEY, e.target.value); }catch(err){}
   renderCtkmTab();
@@ -916,6 +958,7 @@ $("#tonkhoFile").onchange = async (e)=>{
   try{
     const data = await parseTonKhoWorkbook(file);
     state.tonkho = data;
+    state.tonkhoIndex = buildInventoryIndex(data.rows);
     $("#tonkhoMeta").textContent = `${file.name} · ${data.rows.length} dòng`;
     refreshStoreOptions();
     saveTonKhoCache(file.name, data);
@@ -933,7 +976,10 @@ function openScanModal(){
   $("#scanStatus").textContent = "";
   $("#manualCode").value = "";
 }
-function closeScanModal(){ $("#scanOverlay").classList.remove("show"); }
+function closeScanModal(){
+  $("#scanOverlay").classList.remove("show");
+  stopLiveScan();
+}
 $("#openScan").onclick = openScanModal;
 $("#closeScan").onclick = closeScanModal;
 $("#scanOverlay").addEventListener("click", (e)=>{ if(e.target.id==="scanOverlay") closeScanModal(); });
@@ -952,7 +998,7 @@ function lookupCode(code){
     box.innerHTML = "Vui lòng chọn cửa hàng trước khi tra mã.";
     return;
   }
-  const hit = state.tonkho.rows.find(r => r.store===state.selectedStore && (r.maThamChieu===code || r.maSP===code));
+  const hit = findInventory(code, code);
   if(hit){
     box.className = "scan-result found";
     box.innerHTML = `
@@ -969,6 +1015,66 @@ function lookupCode(code){
 
 $("#manualLookup").onclick = ()=>lookupCode($("#manualCode").value);
 $("#manualCode").addEventListener("keydown", (e)=>{ if(e.key==="Enter") lookupCode(e.target.value); });
+
+/* ---- Quét liên tục bằng camera (giống cách "kiểm kê" dùng camera trực tiếp,
+   dùng engine Quagga đã nhúng sẵn trong trang thay vì engine ZXing-WASM nặng ~2MB
+   của trang kiểm kê, để trang này gọn và tải nhanh) ---- */
+let liveScanning = false;
+let lastLiveCode = "", lastLiveCodeAt = 0;
+
+function startLiveScan(){
+  if(liveScanning) return;
+  const wrap = $("#scanLiveWrap");
+  wrap.style.display = "block";
+  $("#scanStatus").textContent = "Đang mở camera…";
+
+  Quagga.init({
+    inputStream: {
+      type: "LiveStream",
+      target: $("#scanVideo"),
+      constraints: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 540 } }
+    },
+    locator: { patchSize: "medium", halfSample: true },
+    numOfWorkers: 2,
+    decoder: { readers: ["ean_reader","ean_8_reader","code_128_reader","upc_reader"] },
+    locate: true
+  }, function(err){
+    if(err){
+      console.error(err);
+      $("#scanStatus").textContent = "Không mở được camera — hãy cho phép quyền camera, hoặc dùng cách chụp ảnh/nhập mã bên dưới.";
+      wrap.style.display = "none";
+      return;
+    }
+    Quagga.start();
+    liveScanning = true;
+    $("#toggleLiveScanLabel").textContent = "Tắt camera";
+    $("#scanStatus").textContent = "Đưa mã vạch vào giữa khung hình…";
+  });
+
+  Quagga.onDetected(onLiveDetected);
+}
+
+function onLiveDetected(result){
+  const code = result && result.codeResult && result.codeResult.code;
+  if(!code) return;
+  const now = Date.now();
+  if(code===lastLiveCode && now-lastLiveCodeAt < 1500) return; // tránh nhận trùng liên tục
+  lastLiveCode = code; lastLiveCodeAt = now;
+  $("#manualCode").value = code;
+  $("#scanStatus").textContent = "Đã nhận diện: " + code;
+  lookupCode(code);
+  if(navigator.vibrate) navigator.vibrate(80);
+}
+
+function stopLiveScan(){
+  if(!liveScanning) return;
+  try{ Quagga.offDetected(onLiveDetected); Quagga.stop(); }catch(e){}
+  liveScanning = false;
+  $("#scanLiveWrap").style.display = "none";
+  $("#toggleLiveScanLabel").textContent = "Bật camera quét";
+}
+
+$("#toggleLiveScan").onclick = ()=>{ liveScanning ? stopLiveScan() : startLiveScan(); };
 
 $("#scanInput").onchange = async (e)=>{
   const file = e.target.files[0];
@@ -1063,6 +1169,7 @@ $("#exportGiftBtn").onclick = exportGiftInventory;
   const cached = loadTonKhoCache();
   if(cached){
     state.tonkho = cached.data;
+    state.tonkhoIndex = buildInventoryIndex(cached.data.rows);
     const d = new Date(cached.savedAt);
     const p = n=>String(n).padStart(2,"0");
     $("#tonkhoMeta").textContent = `${cached.fileName} · ${cached.data.rows.length} dòng · đã lưu ${p(d.getHours())}:${p(d.getMinutes())} ${p(d.getDate())}/${p(d.getMonth()+1)}`;
