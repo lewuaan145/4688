@@ -514,7 +514,53 @@ async function parseTonKhoWorkbook(file){
   return { rows: out, storeSet };
 }
 
-/* ============ localStorage cache (chỉ Tồn kho) ============ */
+/* ============ localStorage cache (Tồn kho + CTKM) ============ */
+const CTKM_CACHE_KEY = "ctkm_cache_v1";
+
+function serializeCtkm(data){
+  return {
+    tongHop: data.tongHop.map(p => ({...p,
+      batDau: p.batDau ? p.batDau.toISOString() : null,
+      ketThuc: p.ketThuc ? p.ketThuc.toISOString() : null
+    })),
+    detailMap: Array.from(data.detailMap.entries()),
+    groupMap: Array.from(data.groupMap.entries()).map(([k,v]) => [k, Array.from(v)]),
+    storeSet: Array.from(data.storeSet)
+  };
+}
+function deserializeCtkm(obj){
+  return {
+    tongHop: obj.tongHop.map(p => ({...p,
+      batDau: p.batDau ? new Date(p.batDau) : null,
+      ketThuc: p.ketThuc ? new Date(p.ketThuc) : null
+    })),
+    detailMap: new Map(obj.detailMap),
+    groupMap: new Map(obj.groupMap.map(([k,v]) => [k, new Set(v)])),
+    storeSet: new Set(obj.storeSet)
+  };
+}
+function saveCtkmCache(fileName, data){
+  try{
+    const payload = JSON.stringify({ fileName, savedAt: Date.now(), data: serializeCtkm(data) });
+    localStorage.setItem(CTKM_CACHE_KEY, payload);
+    return true;
+  }catch(e){
+    console.warn("Không lưu được cache CTKM (có thể do dung lượng):", e);
+    return false;
+  }
+}
+function loadCtkmCache(){
+  try{
+    const raw = localStorage.getItem(CTKM_CACHE_KEY);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    return { fileName: parsed.fileName, savedAt: parsed.savedAt, data: deserializeCtkm(parsed.data) };
+  }catch(e){
+    console.warn("Không đọc được cache CTKM:", e);
+    return null;
+  }
+}
+
 const TONKHO_CACHE_KEY = "tonkho_cache_v1";
 function saveTonKhoCache(fileName, parsed){
   try{
@@ -943,6 +989,8 @@ $("#ctkmFile").onchange = async (e)=>{
     const data = await parseCTKMWorkbook(file);
     state.ctkm = data;
     $("#ctkmMeta").textContent = `${file.name} · ${data.tongHop.length} CTKM`;
+    const savedOk = saveCtkmCache(file.name, data);
+    if(!savedOk) $("#ctkmMeta").textContent += " (không lưu được cache — dữ liệu chỉ dùng trong phiên này)";
     refreshStoreOptions();
     if(state.tab==="ctkm") renderCtkmTab();
   }catch(err){
@@ -1166,6 +1214,13 @@ $("#exportGiftBtn").onclick = exportGiftInventory;
 
 /* ============ INIT ============ */
 (function init(){
+  const cachedCtkm = loadCtkmCache();
+  if(cachedCtkm){
+    state.ctkm = cachedCtkm.data;
+    const d0 = new Date(cachedCtkm.savedAt);
+    const p0 = n=>String(n).padStart(2,"0");
+    $("#ctkmMeta").textContent = `${cachedCtkm.fileName} · ${cachedCtkm.data.tongHop.length} CTKM · đã lưu ${p0(d0.getHours())}:${p0(d0.getMinutes())} ${p0(d0.getDate())}/${p0(d0.getMonth()+1)}`;
+  }
   const cached = loadTonKhoCache();
   if(cached){
     state.tonkho = cached.data;
