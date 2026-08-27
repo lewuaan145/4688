@@ -514,53 +514,61 @@ async function parseTonKhoWorkbook(file){
   return { rows: out, storeSet };
 }
 
-/* ============ localStorage cache (Tồn kho + CTKM) ============ */
-const CTKM_CACHE_KEY = "ctkm_cache_v1";
+/* ============ IndexedDB cache cho CTKM ============
+   Dùng IndexedDB thay vì localStorage: localStorage giới hạn cứng ~5-10MB/toàn origin
+   (dùng chung với cache Tồn kho) — file CTKM thật nhiều chương trình/nhiều sản phẩm
+   chi tiết dễ vượt mức này và bị lưu thất bại âm thầm. IndexedDB cho phép hàng trăm MB
+   và lưu thẳng được Map/Set/Date (không cần tự chuyển đổi qua lại). */
+const IDB_NAME = "ctkmToolCache";
+const IDB_STORE = "kv";
+function idbOpen(){
+  return new Promise((resolve,reject)=>{
+    if(!window.indexedDB){ reject(new Error("Trình duyệt không hỗ trợ IndexedDB")); return; }
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = ()=>{ if(!req.result.objectStoreNames.contains(IDB_STORE)) req.result.createObjectStore(IDB_STORE); };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function idbSet(key, value){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = ()=>resolve(true);
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function idbGet(key){
+  const db = await idbOpen();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const req = tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess = ()=>resolve(req.result || null);
+    req.onerror = ()=>reject(req.error);
+  });
+}
 
-function serializeCtkm(data){
-  return {
-    tongHop: data.tongHop.map(p => ({...p,
-      batDau: p.batDau ? p.batDau.toISOString() : null,
-      ketThuc: p.ketThuc ? p.ketThuc.toISOString() : null
-    })),
-    detailMap: Array.from(data.detailMap.entries()),
-    groupMap: Array.from(data.groupMap.entries()).map(([k,v]) => [k, Array.from(v)]),
-    storeSet: Array.from(data.storeSet)
-  };
-}
-function deserializeCtkm(obj){
-  return {
-    tongHop: obj.tongHop.map(p => ({...p,
-      batDau: p.batDau ? new Date(p.batDau) : null,
-      ketThuc: p.ketThuc ? new Date(p.ketThuc) : null
-    })),
-    detailMap: new Map(obj.detailMap),
-    groupMap: new Map(obj.groupMap.map(([k,v]) => [k, new Set(v)])),
-    storeSet: new Set(obj.storeSet)
-  };
-}
-function saveCtkmCache(fileName, data){
+async function saveCtkmCache(fileName, data){
   try{
-    const payload = JSON.stringify({ fileName, savedAt: Date.now(), data: serializeCtkm(data) });
-    localStorage.setItem(CTKM_CACHE_KEY, payload);
+    await idbSet("ctkm", { fileName, savedAt: Date.now(), data });
     return true;
   }catch(e){
-    console.warn("Không lưu được cache CTKM (có thể do dung lượng):", e);
+    console.warn("Không lưu được cache CTKM (IndexedDB):", e);
     return false;
   }
 }
-function loadCtkmCache(){
+async function loadCtkmCache(){
   try{
-    const raw = localStorage.getItem(CTKM_CACHE_KEY);
-    if(!raw) return null;
-    const parsed = JSON.parse(raw);
-    return { fileName: parsed.fileName, savedAt: parsed.savedAt, data: deserializeCtkm(parsed.data) };
+    const rec = await idbGet("ctkm");
+    return rec; // {fileName, savedAt, data} hoặc null
   }catch(e){
     console.warn("Không đọc được cache CTKM:", e);
     return null;
   }
 }
 
+/* ============ localStorage cache (chỉ Tồn kho — dữ liệu gọn hơn, vẫn dùng localStorage) ============ */
 const TONKHO_CACHE_KEY = "tonkho_cache_v1";
 function saveTonKhoCache(fileName, parsed){
   try{
@@ -989,7 +997,7 @@ $("#ctkmFile").onchange = async (e)=>{
     const data = await parseCTKMWorkbook(file);
     state.ctkm = data;
     $("#ctkmMeta").textContent = `${file.name} · ${data.tongHop.length} CTKM`;
-    const savedOk = saveCtkmCache(file.name, data);
+    const savedOk = await saveCtkmCache(file.name, data);
     if(!savedOk) $("#ctkmMeta").textContent += " (không lưu được cache — dữ liệu chỉ dùng trong phiên này)";
     refreshStoreOptions();
     if(state.tab==="ctkm") renderCtkmTab();
@@ -1213,8 +1221,8 @@ function exportGiftInventory(){
 $("#exportGiftBtn").onclick = exportGiftInventory;
 
 /* ============ INIT ============ */
-(function init(){
-  const cachedCtkm = loadCtkmCache();
+(async function init(){
+  const cachedCtkm = await loadCtkmCache();
   if(cachedCtkm){
     state.ctkm = cachedCtkm.data;
     const d0 = new Date(cachedCtkm.savedAt);
