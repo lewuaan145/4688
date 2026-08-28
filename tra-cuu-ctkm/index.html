@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
 <title>Tra cứu CTKM &amp; Tồn kho</title>
 <script src="vendor/xlsx.full.min.js"></script>
-<script src="vendor/quagga.min.js"></script>
+<script src="vendor/zxing-wasm.js"></script>
 <style>
   :root{
     --ink:#152238;
@@ -231,6 +231,49 @@
   footer.foot button .ic{font-size:17px;}
   footer.foot button.active{color:var(--coral-dark);}
   @media (min-width:640px){ footer.foot{display:none;} body{padding-bottom:0;} }
+/* ===== Scanner toàn màn hình (nguyên bản từ trang Kiểm kê) ===== */
+#scannerOverlay{
+  position:fixed;inset:0;z-index:200;background:#050810;display:none;flex-direction:column;
+}
+#scannerOverlay.show{display:flex;}
+.scan-topbar{
+  flex:none;display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px 12px;position:relative;z-index:2;
+}
+.scan-topbar .t{color:#fff;font-size:14.5px;font-weight:700;}
+.scan-topbar .close-scan{
+  width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.14);border:none;
+  display:flex;align-items:center;justify-content:center;
+}
+.scan-topbar .close-scan svg{width:17px;height:17px;stroke:#fff;}
+.scan-topbar .close-scan.on{background:#E7A93C;}
+.scan-topbar .close-scan.off{background:#D8443B;}
+#scanCanvas{position:absolute;inset:0;width:100%;height:100%;background:#000;}
+.scan-frame-wrap{
+  position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);
+  width:82%;max-width:380px;aspect-ratio:1.3/1;z-index:3;pointer-events:none;
+}
+.scan-frame-wrap .corner{position:absolute;width:26px;height:26px;border:3px solid #7FE0C0;}
+.scan-frame-wrap .tl{top:0;left:0;border-right:none;border-bottom:none;border-radius:6px 0 0 0;}
+.scan-frame-wrap .tr{top:0;right:0;border-left:none;border-bottom:none;border-radius:0 6px 0 0;}
+.scan-frame-wrap .bl{bottom:0;left:0;border-right:none;border-top:none;border-radius:0 0 0 6px;}
+.scan-frame-wrap .br{bottom:0;right:0;border-left:none;border-top:none;border-radius:0 0 6px 0;}
+.scan-frame-wrap .laser{
+  position:absolute;left:4%;right:4%;top:0;height:2px;background:#7FE0C0;
+  box-shadow:0 0 8px 1px rgba(127,224,192,.8);animation:laserMove 1.8s ease-in-out infinite;
+}
+@keyframes laserMove{0%{top:6%;}50%{top:94%;}100%{top:6%;}}
+.scan-hint{
+  position:absolute;left:0;right:0;bottom:40px;z-index:3;text-align:center;
+  color:#EAF0FF;font-size:13.5px;font-weight:600;padding:0 30px;text-shadow:0 1px 4px rgba(0,0,0,.5);
+}
+.scan-hint .sub{display:block;font-size:12px;color:#9FB0D6;font-weight:500;margin-top:4px;}
+.scan-status{
+  position:absolute;left:0;right:0;top:58px;z-index:3;text-align:center;
+  color:#FF9D8A;font-size:12.5px;font-weight:600;padding:0 24px;
+}
+#scannerOverlay.found .scan-frame-wrap .corner{border-color:#12996B;}
+#scannerOverlay.found .scan-frame-wrap .laser{display:none;}
 </style>
 </head>
 <body>
@@ -300,19 +343,40 @@
   <button id="footScan"><span class="ic">📷</span>Quét mã</button>
 </footer>
 
+<div id="scannerOverlay">
+  <div class="scan-topbar">
+    <div class="t">Quét mã vạch sản phẩm</div>
+    <div style="display:flex;gap:8px;">
+      <button class="close-scan" id="btnQrToggle" type="button" aria-label="Bật/tắt quét QR">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="21" y2="14"/><line x1="14" y1="21" x2="21" y2="21"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="21" y1="14" x2="21" y2="21"/></svg>
+      </button>
+      <button class="close-scan" id="btnTorch" type="button" style="display:none;" aria-label="Đèn pin">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15 14a5 5 0 1 0-6 0v3h6v-3Z"/></svg>
+      </button>
+      <button class="close-scan" id="btnCloseScan" type="button">
+        <svg viewBox="0 0 24 24" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+      </button>
+    </div>
+  </div>
+  <canvas id="scanCanvas"></canvas>
+  <div class="scan-frame-wrap" id="scanFrame">
+    <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+    <div class="laser"></div>
+  </div>
+  <div class="scan-status" id="scanStatus2"></div>
+  <div class="scan-hint">Đưa mã vạch vào giữa khung, cách camera 10–15cm
+    <span class="sub">Giữ máy ổn định, đủ sáng • Nhận mọi loại mã: EAN, UPC, Code128, Code39, QR…</span>
+  </div>
+</div>
+
 <div class="modal-overlay" id="scanOverlay">
   <div class="modal">
     <h3>Quét mã vạch sản phẩm</h3>
     <p class="hint">Bật camera để quét liên tục, hoặc chụp ảnh / nhập mã thủ công.</p>
 
-    <div id="scanLiveWrap" style="display:none;position:relative;border-radius:12px;overflow:hidden;background:#000;margin-bottom:10px;">
-      <video id="scanVideo" autoplay playsinline muted style="width:100%;display:block;max-height:260px;object-fit:cover;"></video>
-      <div style="position:absolute;left:10%;right:10%;top:38%;bottom:38%;border:2px solid #33e07a;border-radius:8px;pointer-events:none;"></div>
-    </div>
-
     <button class="scan-photo-btn" id="toggleLiveScan" type="button" style="width:100%;border:none;cursor:pointer;">
       <span class="ic">🎥</span>
-      <span id="toggleLiveScanLabel">Bật camera quét</span>
+      <span>Bật camera quét</span>
     </button>
 
     <label class="scan-photo-btn" id="scanPhotoBtn">
@@ -1034,7 +1098,7 @@ function openScanModal(){
 }
 function closeScanModal(){
   $("#scanOverlay").classList.remove("show");
-  stopLiveScan();
+  closeScanner();
 }
 $("#openScan").onclick = openScanModal;
 $("#closeScan").onclick = closeScanModal;
@@ -1072,65 +1136,230 @@ function lookupCode(code){
 $("#manualLookup").onclick = ()=>lookupCode($("#manualCode").value);
 $("#manualCode").addEventListener("keydown", (e)=>{ if(e.key==="Enter") lookupCode(e.target.value); });
 
-/* ---- Quét liên tục bằng camera (giống cách "kiểm kê" dùng camera trực tiếp,
-   dùng engine Quagga đã nhúng sẵn trong trang thay vì engine ZXing-WASM nặng ~2MB
-   của trang kiểm kê, để trang này gọn và tải nhanh) ---- */
-let liveScanning = false;
-let lastLiveCode = "", lastLiveCodeAt = 0;
-
-function startLiveScan(){
-  if(liveScanning) return;
-  const wrap = $("#scanLiveWrap");
-  wrap.style.display = "block";
-  $("#scanStatus").textContent = "Đang mở camera…";
-
-  Quagga.init({
-    inputStream: {
-      type: "LiveStream",
-      target: $("#scanVideo"),
-      constraints: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 540 } }
-    },
-    locator: { patchSize: "medium", halfSample: true },
-    numOfWorkers: 2,
-    decoder: { readers: ["ean_reader","ean_8_reader","code_128_reader","upc_reader"] },
-    locate: true
-  }, function(err){
-    if(err){
-      console.error(err);
-      $("#scanStatus").textContent = "Không mở được camera — hãy cho phép quyền camera, hoặc dùng cách chụp ảnh/nhập mã bên dưới.";
-      wrap.style.display = "none";
-      return;
-    }
-    Quagga.start();
-    liveScanning = true;
-    $("#toggleLiveScanLabel").textContent = "Tắt camera";
-    $("#scanStatus").textContent = "Đưa mã vạch vào giữa khung hình…";
+/* ================================================================
+   QUÉT MÃ VẠCH BẰNG CAMERA — copy nguyên cơ chế từ trang "Kiểm kê"
+   (engine ZXing-WASM, cùng cách mở camera / vẽ khung hình / giải mã)
+   Chỉ đổi phần xử lý kết quả (handleScannedCode) để tra tồn kho ở đây
+   thay vì cập nhật số lượng kiểm kê như bên kia.
+   ================================================================ */
+var zxingReadyPromise = null;
+function ensureZxingReady(){
+  if(zxingReadyPromise) return zxingReadyPromise;
+  zxingReadyPromise = new Promise(function(resolve, reject){
+    try{
+      if(typeof ZXingWASM === "undefined"){ reject(new Error("ZXingWASM missing")); return; }
+      var b64 = window.ZXING_WASM_B64_READER;
+      var binStr = atob(b64);
+      var len = binStr.length;
+      var bytes = new Uint8Array(len);
+      for(var i=0;i<len;i++){ bytes[i] = binStr.charCodeAt(i); }
+      ZXingWASM.prepareZXingModule({ overrides: { wasmBinary: bytes }, fireImmediately: true })
+        .then(function(){ resolve(); })
+        .catch(reject);
+    }catch(e){ reject(e); }
   });
+  return zxingReadyPromise;
+}
+// Khởi động sẵn engine trong nền để lần quét đầu tiên không bị chờ lâu.
+setTimeout(function(){ ensureZxingReady().catch(function(){}); }, 600);
 
-  Quagga.onDetected(onLiveDetected);
+var RETAIL_FORMATS_BASE = ["EAN13","EAN8","UPCA","UPCE","Code128","Code39","Code93","Codabar","ITF","DataMatrix","Aztec","PDF417"];
+const QR_PREF_KEY = "ctkm_qrEnabled";
+var qrEnabled = true;
+(function loadQrPref(){
+  try{ const v = localStorage.getItem(QR_PREF_KEY); if(v!==null) qrEnabled = v==="1"; }catch(e){}
+})();
+function currentScanFormats(){ return qrEnabled ? RETAIL_FORMATS_BASE.concat(["QRCode"]) : RETAIL_FORMATS_BASE; }
+function setupQrToggleButton(){ $("#btnQrToggle").classList.toggle("off", !qrEnabled); }
+
+var scanStream=null, scanTrack=null, scanVideo=null, scanRAF=null;
+var scanDecodeBusy=false, torchOn=false, decodeCanvasEl=null, scannerOpening=false;
+var scannerBusy=false, scannerLastCode=null, scannerLastAt=0;
+var scanDisplayMap=null;
+
+function openScanner(){
+  if(scannerOpening) return;
+  scannerOpening = true;
+  const overlay = $("#scannerOverlay");
+  overlay.classList.remove("found");
+  overlay.classList.add("show");
+  $("#scanStatus2").textContent = "Đang mở camera…";
+  $("#btnTorch").style.display = "none";
+  $("#btnTorch").classList.remove("on");
+  setupQrToggleButton();
+  torchOn = false;
+  scannerBusy = false;
+  scannerLastCode = null;
+  scannerLastAt = 0;
+
+  ensureZxingReady().catch(e=>console.error("ZXing init failed", e));
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    $("#scanStatus2").textContent = "Trình duyệt không hỗ trợ camera.";
+    scannerOpening = false;
+    return;
+  }
+  stopScanStream();
+
+  function requestCamera(){
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    }).then(function(stream){
+      if(!overlay.classList.contains("show")){
+        stream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} });
+        scannerOpening = false;
+        return;
+      }
+      scanStream = stream;
+      scanTrack = stream.getVideoTracks()[0];
+      scanVideo = document.createElement("video");
+      scanVideo.setAttribute("playsinline","");
+      scanVideo.setAttribute("muted","");
+      scanVideo.muted = true;
+      scanVideo.srcObject = stream;
+      const playPromise = scanVideo.play();
+      if(playPromise && playPromise.catch) playPromise.catch(()=>{});
+      $("#scanStatus2").textContent = "";
+      try{ scanTrack.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){}
+      setupTorchButton();
+      scanVideo.addEventListener("loadedmetadata", ()=>startScanLoop(), { once: true });
+      scannerOpening = false;
+    }).catch(function(err){
+      $("#scanStatus2").textContent = "Không mở được camera. Kiểm tra quyền truy cập camera cho trình duyệt.";
+      console.error(err);
+      scannerOpening = false;
+    });
+  }
+  setTimeout(requestCamera, 120);
 }
 
-function onLiveDetected(result){
-  const code = result && result.codeResult && result.codeResult.code;
-  if(!code) return;
+function computeDisplayAndGuideMap(vw, vh, canvas){
+  const scale = Math.max(canvas.width / vw, canvas.height / vh);
+  const offsetX = (canvas.width - vw * scale) / 2;
+  const offsetY = (canvas.height - vh * scale) / 2;
+  const guideEl = $("#scanFrame");
+  const canvasRect = canvas.getBoundingClientRect();
+  const guideRect = guideEl.getBoundingClientRect();
+  const gx = guideRect.left - canvasRect.left;
+  const gy = guideRect.top - canvasRect.top;
+  const gw = guideRect.width, gh = guideRect.height;
+  let vx = (gx - offsetX) / scale;
+  let vy = (gy - offsetY) / scale;
+  let vwid = gw / scale;
+  let vhei = gh / scale;
+  vx = Math.max(0, Math.min(vx, vw));
+  vy = Math.max(0, Math.min(vy, vh));
+  vwid = Math.max(10, Math.min(vwid, vw - vx));
+  vhei = Math.max(10, Math.min(vhei, vh - vy));
+  return { scale, offsetX, offsetY, crop: { x: Math.round(vx), y: Math.round(vy), w: Math.round(vwid), h: Math.round(vhei) } };
+}
+
+function startScanLoop(){
+  const canvas = $("#scanCanvas");
+  const ctx = canvas.getContext("2d");
+  let lastDecodeAt = 0;
+  const decodeIntervalMs = 200;
+  scanDisplayMap = null;
+
+  function frame(ts){
+    if(!scanVideo) return;
+    if(scanVideo.readyState < 2 || !scanVideo.videoWidth){ scanRAF = requestAnimationFrame(frame); return; }
+    const vw = scanVideo.videoWidth, vh = scanVideo.videoHeight;
+    const dispW = canvas.clientWidth, dispH = canvas.clientHeight;
+    if(canvas.width !== dispW || canvas.height !== dispH){
+      canvas.width = dispW; canvas.height = dispH; scanDisplayMap = null;
+    }
+    if(!scanDisplayMap) scanDisplayMap = computeDisplayAndGuideMap(vw, vh, canvas);
+    const m = scanDisplayMap;
+    ctx.drawImage(scanVideo, 0, 0, vw, vh, m.offsetX, m.offsetY, vw*m.scale, vh*m.scale);
+    if(!scanDecodeBusy && !scannerBusy && (ts - lastDecodeAt) > decodeIntervalMs){
+      lastDecodeAt = ts;
+      decodeFromCrop(m.crop);
+    }
+    scanRAF = requestAnimationFrame(frame);
+  }
+  scanRAF = requestAnimationFrame(frame);
+}
+
+function decodeFromCrop(crop){
+  if(!scanVideo || crop.w<10 || crop.h<10) return;
+  scanDecodeBusy = true;
+  if(!decodeCanvasEl) decodeCanvasEl = document.createElement("canvas");
+  decodeCanvasEl.width = crop.w;
+  decodeCanvasEl.height = crop.h;
+  const dctx = decodeCanvasEl.getContext("2d", { willReadFrequently: true });
+  dctx.drawImage(scanVideo, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+  let imageData;
+  try{ imageData = dctx.getImageData(0, 0, crop.w, crop.h); }
+  catch(e){ scanDecodeBusy = false; return; }
+
+  ensureZxingReady().then(()=>ZXingWASM.readBarcodes(imageData, {
+    tryHarder: true, tryRotate: true, tryInvert: true,
+    formats: currentScanFormats(), maxNumberOfSymbols: 1
+  })).then(function(results){
+    scanDecodeBusy = false;
+    if(results && results.length && results[0].text) onScanDecoded(results[0].text);
+  }).catch(()=>{ scanDecodeBusy = false; });
+}
+
+function stopScanStream(){
+  if(scanRAF){ cancelAnimationFrame(scanRAF); scanRAF = null; }
+  if(scanStream){ scanStream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} }); scanStream = null; }
+  scanVideo = null; scanTrack = null;
+}
+function closeScanner(){
+  const overlay = $("#scannerOverlay");
+  overlay.classList.remove("show");
+  overlay.classList.remove("found");
+  scannerOpening = false;
+  stopScanStream();
+}
+$("#btnCloseScan").addEventListener("click", closeScanner);
+$("#btnQrToggle").addEventListener("click", function(){
+  qrEnabled = !qrEnabled;
+  try{ localStorage.setItem(QR_PREF_KEY, qrEnabled ? "1" : "0"); }catch(e){}
+  setupQrToggleButton();
+  $("#scanStatus2").textContent = qrEnabled ? "Đã bật quét mã QR" : "Đã tắt quét mã QR — tránh dính mã QR cạnh vạch";
+});
+
+function setupTorchButton(){
+  try{
+    const caps = scanTrack && scanTrack.getCapabilities ? scanTrack.getCapabilities() : null;
+    if(caps && caps.torch) $("#btnTorch").style.display = "flex";
+  }catch(e){}
+}
+$("#btnTorch").addEventListener("click", function(){
+  if(!scanTrack) return;
+  torchOn = !torchOn;
+  scanTrack.applyConstraints({ advanced: [{ torch: torchOn }] }).then(()=>{
+    $("#btnTorch").classList.toggle("on", torchOn);
+  }).catch(()=>{
+    $("#scanStatus2").textContent = "Đèn pin không khả dụng trên thiết bị này.";
+    torchOn = false;
+  });
+});
+
+function onScanDecoded(decodedText){
   const now = Date.now();
-  if(code===lastLiveCode && now-lastLiveCodeAt < 1500) return; // tránh nhận trùng liên tục
-  lastLiveCode = code; lastLiveCodeAt = now;
+  if(scannerBusy) return;
+  if(decodedText===scannerLastCode && (now-scannerLastAt)<1500) return;
+  scannerBusy = true;
+  scannerLastCode = decodedText;
+  scannerLastAt = now;
+  const overlay = $("#scannerOverlay");
+  overlay.classList.add("found");
+  if(navigator.vibrate) navigator.vibrate(60);
+  handleScannedCode(decodedText.trim());
+  setTimeout(()=>closeScanner(), 320);
+}
+function handleScannedCode(code){
   $("#manualCode").value = code;
   $("#scanStatus").textContent = "Đã nhận diện: " + code;
   lookupCode(code);
-  if(navigator.vibrate) navigator.vibrate(80);
 }
 
-function stopLiveScan(){
-  if(!liveScanning) return;
-  try{ Quagga.offDetected(onLiveDetected); Quagga.stop(); }catch(e){}
-  liveScanning = false;
-  $("#scanLiveWrap").style.display = "none";
-  $("#toggleLiveScanLabel").textContent = "Bật camera quét";
-}
-
-$("#toggleLiveScan").onclick = ()=>{ liveScanning ? stopLiveScan() : startLiveScan(); };
+$("#toggleLiveScan").onclick = openScanner;
 
 $("#scanInput").onchange = async (e)=>{
   const file = e.target.files[0];
@@ -1144,21 +1373,30 @@ $("#scanInput").onchange = async (e)=>{
       r.onerror = rej;
       r.readAsDataURL(file);
     });
-    Quagga.decodeSingle({
-      src: dataUrl,
-      numOfWorkers: 0,
-      inputStream: { size: 1600 },
-      decoder: { readers: ["ean_reader","ean_8_reader","code_128_reader","upc_reader"] },
-      locate: true
-    }, function(result){
-      if(result && result.codeResult && result.codeResult.code){
-        $("#scanStatus").textContent = "Đã nhận diện: " + result.codeResult.code;
-        $("#manualCode").value = result.codeResult.code;
-        lookupCode(result.codeResult.code);
-      } else {
-        $("#scanStatus").textContent = "Không nhận diện được mã vạch — thử chụp lại gần hơn, hoặc nhập mã thủ công bên dưới.";
-      }
+    const img = await new Promise((res,rej)=>{
+      const im = new Image();
+      im.onload = ()=>res(im);
+      im.onerror = rej;
+      im.src = dataUrl;
     });
+    const cv = document.createElement("canvas");
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    const cctx = cv.getContext("2d", { willReadFrequently: true });
+    cctx.drawImage(img, 0, 0);
+    const imageData = cctx.getImageData(0, 0, cv.width, cv.height);
+
+    await ensureZxingReady();
+    const results = await ZXingWASM.readBarcodes(imageData, {
+      tryHarder: true, tryRotate: true, tryInvert: true,
+      formats: currentScanFormats(), maxNumberOfSymbols: 1
+    });
+    if(results && results.length && results[0].text){
+      $("#scanStatus").textContent = "Đã nhận diện: " + results[0].text;
+      $("#manualCode").value = results[0].text;
+      lookupCode(results[0].text);
+    } else {
+      $("#scanStatus").textContent = "Không nhận diện được mã vạch — thử chụp lại gần hơn, hoặc nhập mã thủ công bên dưới.";
+    }
   }catch(err){
     console.error(err);
     $("#scanStatus").textContent = "Có lỗi khi xử lý ảnh.";
