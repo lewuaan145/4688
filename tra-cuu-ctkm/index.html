@@ -581,7 +581,20 @@ async function parseCTKMWorkbook(file){
     }
   }
 
-  return { tongHop, detailMap, groupMap, storeSet };
+  // Tập hợp toàn bộ mã (SP + tham chiếu + quà tặng) xuất hiện trong dữ liệu CTKM,
+  // dùng để nhận biết nhanh "chuỗi vừa gõ có phải 1 mã sản phẩm hợp lệ hay không"
+  // (phân biệt với gõ tên CTKM/ngành hàng) — tránh phải quét lặp detailMap mỗi lần gõ.
+  const codeSet = new Set();
+  detailMap.forEach(list=>{
+    list.forEach(d=>{
+      if(d.maSP) codeSet.add(d.maSP);
+      if(d.maThamChieu) codeSet.add(d.maThamChieu);
+      if(d.giftMa) codeSet.add(d.giftMa);
+      if(d.giftThamChieu) codeSet.add(d.giftThamChieu);
+    });
+  });
+
+  return { tongHop, detailMap, groupMap, storeSet, codeSet };
 }
 
 async function parseTonKhoWorkbook(file){
@@ -669,27 +682,41 @@ async function loadCtkmCache(){
   }
 }
 
-/* ============ localStorage cache (chỉ Tồn kho — dữ liệu gọn hơn, vẫn dùng localStorage) ============ */
-const TONKHO_CACHE_KEY = "tonkho_cache_v1";
-function saveTonKhoCache(fileName, parsed){
+/* ============ IndexedDB cache (Tồn kho) ============
+   Trước đây dùng localStorage riêng cho Tồn kho, nhưng localStorage giới hạn cứng
+   ~5-10MB/toàn origin (dùng chung với CTKM) — file Tồn kho 17.000+ dòng dễ vượt mức
+   này và bị lưu thất bại âm thầm (đặc biệt trên app đã "Thêm vào Màn hình chính"
+   trên iPhone, dữ liệu càng dễ mất khi thoát app). Chuyển sang IndexedDB (cùng
+   database với CTKM) để lưu bền hơn, không giới hạn dung lượng như trên. */
+async function saveTonKhoCache(fileName, data){
   try{
-    const payload = JSON.stringify({fileName, savedAt: Date.now(), rows: parsed.rows});
-    localStorage.setItem(TONKHO_CACHE_KEY, payload);
+    await idbSet("tonkho", { fileName, savedAt: Date.now(), data });
     return true;
   }catch(e){
-    console.warn("Không lưu được cache tồn kho (có thể do dung lượng):", e);
+    console.warn("Không lưu được cache tồn kho (IndexedDB):", e);
     return false;
   }
 }
-function loadTonKhoCache(){
+async function loadTonKhoCache(){
   try{
+    const rec = await idbGet("tonkho");
+    if(rec) return rec;
+    // Di chuyển 1 lần dữ liệu cũ còn sót lại trong localStorage (từ bản trước khi
+    // chuyển sang IndexedDB) sang IndexedDB, để không mất dữ liệu đã lưu trước đó.
     const raw = localStorage.getItem(TONKHO_CACHE_KEY);
     if(!raw) return null;
     const payload = JSON.parse(raw);
     const storeSet = new Set(payload.rows.map(r=>r.store));
-    return { fileName: payload.fileName, savedAt: payload.savedAt, data: {rows: payload.rows, storeSet} };
-  }catch(e){ return null; }
+    const migrated = { fileName: payload.fileName, savedAt: payload.savedAt, data: {rows: payload.rows, storeSet} };
+    await idbSet("tonkho", migrated);
+    try{ localStorage.removeItem(TONKHO_CACHE_KEY); }catch(e){}
+    return migrated;
+  }catch(e){
+    console.warn("Không đọc được cache tồn kho:", e);
+    return null;
+  }
 }
+const TONKHO_CACHE_KEY = "tonkho_cache_v1"; // chỉ còn dùng để di chuyển dữ liệu cũ 1 lần sang IndexedDB
 const STORE_PREF_KEY = "selected_store_v1";
 const CATEGORY_PREF_KEY = "selected_category_v1";
 
@@ -714,6 +741,17 @@ function findInventory(maSP, maThamChieu){
   if(maSP){ const hit = idx.bySP.get(store+"|"+maSP); if(hit) return hit; }
   if(maThamChieu){ const hit = idx.byRef.get(store+"|"+maThamChieu); if(hit) return hit; }
   return null;
+}
+
+/* Kiểm tra chuỗi gõ vào có khớp CHÍNH XÁC 1 mã SP / mã tham chiếu / mã quà tặng
+   đã biết (trong Tồn kho hoặc CTKM) hay không. Dùng để phân biệt "đang gõ mã sản phẩm"
+   với "đang gõ tên CTKM / ngành hàng" trong cùng 1 ô tìm kiếm — chỉ mã mới kích hoạt
+   thẻ tóm tắt, gõ tên vẫn chỉ lọc danh sách như trước, tránh thẻ nhấp nháy sai. */
+function codeExistsExact(code){
+  if(!code) return false;
+  if(state.tonkho && state.selectedStore && findInventory(code, code)) return true;
+  if(state.ctkm && state.ctkm.codeSet && state.ctkm.codeSet.has(code)) return true;
+  return false;
 }
 
 /* ============ THẺ TÓM TẮT MÃ VỪA QUÉT ============
@@ -1153,7 +1191,23 @@ $("#storeSelect").onchange = (e)=>{
 let searchDebounceTimer = null;
 $("#searchCtkm").oninput = ()=>{
   clearTimeout(searchDebounceTimer);
-  searchDebounceTimer = setTimeout(renderCtkmTab, 250);
+  searchDebounceTimer = setTimeout(()=>{
+    renderCtkmTab();
+    // Gõ tay mã SP/mã vạch (không phải tên CTKM) → tự động hiện thẻ tóm tắt,
+    // đồng bộ trải nghiệm với lúc quét camera.
+    const code = $("#searchCtkm").value.trim();
+    if(code && codeExistsExact(code)){
+      state.scanResult = code;
+      renderScanSummary();
+      const box = $("#scanSummary");
+      if(box && box.style.display !== "none"){
+        box.scrollIntoView({behavior:"smooth", block:"start"});
+      }
+    } else if(state.scanResult){
+      state.scanResult = null;
+      renderScanSummary();
+    }
+  }, 250);
 };
 $("#categoryFilter").onchange = (e)=>{
   try{ localStorage.setItem(CATEGORY_PREF_KEY, e.target.value); }catch(err){}
@@ -1192,7 +1246,8 @@ $("#tonkhoFile").onchange = async (e)=>{
     state.tonkhoIndex = buildInventoryIndex(data.rows);
     $("#tonkhoMeta").textContent = `${file.name} · ${data.rows.length} dòng`;
     refreshStoreOptions();
-    saveTonKhoCache(file.name, data);
+    const savedOk = await saveTonKhoCache(file.name, data);
+    if(!savedOk) $("#tonkhoMeta").textContent += " (không lưu được cache — dữ liệu chỉ dùng trong phiên này)";
     if(state.tab==="tonkho") renderTonKhoTab();
     renderScanSummary();
   }catch(err){
@@ -1627,7 +1682,7 @@ $("#exportGiftBtn").onclick = exportGiftInventory;
     const p0 = n=>String(n).padStart(2,"0");
     $("#ctkmMeta").textContent = `${cachedCtkm.fileName} · ${cachedCtkm.data.tongHop.length} CTKM · đã lưu ${p0(d0.getHours())}:${p0(d0.getMinutes())} ${p0(d0.getDate())}/${p0(d0.getMonth()+1)}`;
   }
-  const cached = loadTonKhoCache();
+  const cached = await loadTonKhoCache();
   if(cached){
     state.tonkho = cached.data;
     state.tonkhoIndex = buildInventoryIndex(cached.data.rows);
