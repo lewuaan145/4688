@@ -186,6 +186,29 @@
   .inv-row .qty .hang{font-size:10px;color:var(--amber);font-weight:700;margin-top:2px;}
   .inv-count{font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:10px;}
 
+  /* ---- scan summary (pinned card after scanning) ---- */
+  .scan-summary{
+    position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px 12px;margin-bottom:14px;box-shadow:0 4px 14px rgba(21,34,56,.06);
+    display:none;
+  }
+  .scan-summary .ss-close{
+    position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;
+    border:none;background:#eef1f6;color:var(--muted);font-size:13px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .scan-summary .ss-head{padding-right:32px;}
+  .scan-summary .ss-name{font-size:15px;font-weight:800;color:var(--ink);line-height:1.35;}
+  .scan-summary .ss-code{font-size:11.5px;color:var(--muted);margin-top:3px;font-weight:600;}
+  .scan-summary .ss-qty{margin-top:10px;font-size:24px;font-weight:900;color:var(--ink);}
+  .scan-summary .ss-qty .lbl{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-left:2px;}
+  .scan-summary .ss-qty.zero{color:#c94a4a;}
+  .scan-summary .ss-note{margin-top:10px;font-size:12px;color:var(--muted);background:#f7f8fb;border-radius:8px;padding:8px 10px;}
+  .scan-summary .ss-role{margin-top:8px;font-size:12px;font-weight:700;border-radius:8px;padding:8px 10px;line-height:1.5;}
+  .scan-summary .ss-role.sale{background:#eafaf3;color:#0f8f6e;}
+  .scan-summary .ss-role.gift{background:#fff0f3;color:var(--coral-dark);}
+  .scan-summary .ss-role.none{background:#f7f8fb;color:var(--muted);font-weight:600;}
+
   /* ---- scan modal ---- */
   .modal-overlay{
     position:fixed;inset:0;background:rgba(10,16,28,.55);z-index:100;
@@ -325,6 +348,7 @@
 </nav>
 
 <main>
+  <div class="scan-summary" id="scanSummary"></div>
   <section id="viewCtkm">
     <div class="banners" id="banners"></div>
     <div class="searchbar">
@@ -416,7 +440,8 @@ const state = {
   ctkm: null,      // { tongHop:[], detailMap:Map, groupMap:Map, storeSet:Set }
   tonkho: null,     // { rows:[], storeSet:Set }
   selectedStore: "",
-  tab: "ctkm"
+  tab: "ctkm",
+  scanResult: null   // mã vừa quét (hoặc nhập tay), dùng để hiện thẻ tóm tắt pin trên đầu trang
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -689,6 +714,77 @@ function findInventory(maSP, maThamChieu){
   if(maSP){ const hit = idx.bySP.get(store+"|"+maSP); if(hit) return hit; }
   if(maThamChieu){ const hit = idx.byRef.get(store+"|"+maThamChieu); if(hit) return hit; }
   return null;
+}
+
+/* ============ THẺ TÓM TẮT MÃ VỪA QUÉT ============
+   Tra tồn kho + xác định mã này đang là "SP áp dụng" hay "quà tặng"
+   trong những CTKM ĐANG CHẠY tại cửa hàng đang chọn. */
+function computeScanSummary(code){
+  const store = state.selectedStore;
+  const inv = (state.tonkho && store) ? findInventory(code, code) : null;
+
+  let saleIn = [], giftIn = [];
+  if(state.ctkm && store){
+    const t = today0();
+    const active = getApplicablePromos(store).filter(p => p.batDau && p.ketThuc && t>=p.batDau && t<=p.ketThuc);
+    active.forEach(p=>{
+      const details = state.ctkm.detailMap.get(p.key) || [];
+      if(details.some(d => d.maSP===code || d.maThamChieu===code)) saleIn.push(p);
+      if(details.some(d => d.giftMa===code || d.giftThamChieu===code)) giftIn.push(p);
+    });
+  }
+
+  // Tên SP: ưu tiên lấy từ Tồn kho (đáng tin nhất), fallback lấy từ dữ liệu CTKM nếu chưa có
+  let name = inv ? inv.tenSP : "";
+  if(!name && state.ctkm){
+    const pool = saleIn.length ? saleIn : giftIn;
+    outer: for(const p of pool){
+      const details = state.ctkm.detailMap.get(p.key) || [];
+      for(const d of details){
+        if(d.maSP===code || d.maThamChieu===code){ name = d.tenSP; break outer; }
+        if(d.giftMa===code || d.giftThamChieu===code){ name = d.giftTen; break outer; }
+      }
+    }
+  }
+  return { code, inv, name, saleIn, giftIn };
+}
+
+function renderScanSummary(){
+  const box = $("#scanSummary");
+  if(!state.scanResult){ box.style.display = "none"; box.innerHTML = ""; return; }
+
+  const code = state.scanResult;
+  const info = computeScanSummary(code);
+  box.style.display = "";
+
+  let qtyHtml;
+  if(info.inv){
+    qtyHtml = `<div class="ss-qty ${info.inv.soLuong<=0?'zero':''}">${info.inv.soLuong} <span class="lbl">tồn kho</span>${info.inv.soLuongTreo>0?` · +${info.inv.soLuongTreo} treo`:''}</div>`;
+  } else if(!state.tonkho){
+    qtyHtml = `<div class="ss-note">Chưa tải file Tồn kho — chưa tra được số lượng.</div>`;
+  } else if(!state.selectedStore){
+    qtyHtml = `<div class="ss-note">Vui lòng chọn cửa hàng để tra tồn kho.</div>`;
+  } else {
+    qtyHtml = `<div class="ss-note">Không tìm thấy mã này trong tồn kho cửa hàng đang chọn.</div>`;
+  }
+
+  let roleHtml = "";
+  if(info.saleIn.length) roleHtml += `<div class="ss-role sale">🟢 Đang bán trong ${info.saleIn.length} CTKM: ${info.saleIn.map(p=>p.ten).join("; ")}</div>`;
+  if(info.giftIn.length) roleHtml += `<div class="ss-role gift">🎁 Là quà tặng trong ${info.giftIn.length} CTKM: ${info.giftIn.map(p=>p.ten).join("; ")}</div>`;
+  if(!roleHtml){
+    roleHtml = `<div class="ss-role none">${state.ctkm ? 'Không có CTKM nào đang chạy áp dụng cho mã này.' : 'Chưa tải file CTKM tháng.'}</div>`;
+  }
+
+  box.innerHTML = `
+    <button class="ss-close" id="ssClose" type="button" aria-label="Đóng">✕</button>
+    <div class="ss-head">
+      <div class="ss-name">${info.name || "(Không xác định được tên SP)"}</div>
+      <div class="ss-code">Mã quét: <b>${code}</b>${(info.inv && info.inv.nganhCap1) ? ` · ${info.inv.nganhCap1}` : ''}</div>
+    </div>
+    ${qtyHtml}
+    ${roleHtml}
+  `;
+  $("#ssClose").onclick = ()=>{ state.scanResult = null; renderScanSummary(); };
 }
 
 /* ============ STORE SELECT ============ */
@@ -1039,6 +1135,7 @@ function setTab(tab){
   $("#footCtkm").classList.toggle("active", tab==="ctkm");
   $("#footTonkho").classList.toggle("active", tab==="tonkho");
   if(tab==="ctkm") renderCtkmTab(); else renderTonKhoTab();
+  renderScanSummary();
 }
 $("#tabBtnCtkm").onclick = ()=>setTab("ctkm");
 $("#tabBtnTonkho").onclick = ()=>setTab("tonkho");
@@ -1051,6 +1148,7 @@ $("#storeSelect").onchange = (e)=>{
   state.selectedStore = e.target.value;
   try{ localStorage.setItem(STORE_PREF_KEY, state.selectedStore); }catch(err){}
   if(state.tab==="ctkm") renderCtkmTab(); else renderTonKhoTab();
+  renderScanSummary();
 };
 let searchDebounceTimer = null;
 $("#searchCtkm").oninput = ()=>{
@@ -1077,6 +1175,7 @@ $("#ctkmFile").onchange = async (e)=>{
     if(!savedOk) $("#ctkmMeta").textContent += " (không lưu được cache — dữ liệu chỉ dùng trong phiên này)";
     refreshStoreOptions();
     if(state.tab==="ctkm") renderCtkmTab();
+    renderScanSummary();
   }catch(err){
     console.error(err);
     $("#ctkmMeta").textContent = "Lỗi đọc file: " + err.message;
@@ -1095,6 +1194,7 @@ $("#tonkhoFile").onchange = async (e)=>{
     refreshStoreOptions();
     saveTonKhoCache(file.name, data);
     if(state.tab==="tonkho") renderTonKhoTab();
+    renderScanSummary();
   }catch(err){
     console.error(err);
     $("#tonkhoMeta").textContent = "Lỗi đọc file: " + err.message;
@@ -1366,8 +1466,11 @@ function onScanDecoded(decodedText){
   setTimeout(()=>closeScanner(), 320);
 }
 function handleScannedCode(code){
-  // Đưa mã vừa quét vào đúng ô tìm kiếm của tab đang mở, để lọc ra CTKM/sản phẩm liên quan —
-  // thay vì mở màn tra riêng.
+  // Hiện thẻ tóm tắt (tên SP + tồn kho + vai trò trong CTKM đang chạy), pin trên đầu trang.
+  state.scanResult = code;
+  renderScanSummary();
+  // Đồng thời vẫn đưa mã vào ô tìm kiếm của tab đang mở, để lọc ra CTKM/sản phẩm liên quan
+  // như trước — thẻ tóm tắt chỉ bổ sung, không thay thế cách lọc cũ.
   if(state.tab === "tonkho"){
     $("#searchTonkho").value = code;
     renderTonKhoTab();
