@@ -1366,10 +1366,15 @@ function onScanDecoded(decodedText){
   setTimeout(()=>closeScanner(), 320);
 }
 function handleScannedCode(code){
-  $("#scanOverlay").classList.add("show"); // hiện modal kết quả sau khi camera tự đóng
-  $("#manualCode").value = code;
-  $("#scanStatus").textContent = "Đã nhận diện: " + code;
-  lookupCode(code);
+  // Đưa mã vừa quét vào đúng ô tìm kiếm của tab đang mở, để lọc ra CTKM/sản phẩm liên quan —
+  // thay vì mở màn tra riêng.
+  if(state.tab === "tonkho"){
+    $("#searchTonkho").value = code;
+    renderTonKhoTab();
+  } else {
+    $("#searchCtkm").value = code;
+    renderCtkmTab();
+  }
 }
 
 $("#toggleLiveScan").onclick = openScanner;
