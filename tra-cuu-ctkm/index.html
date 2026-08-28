@@ -214,7 +214,6 @@
     margin-top:14px;width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);
     background:#fff;font-weight:700;font-size:13px;color:var(--muted);
   }
-  #scanCanvas{display:none;}
   .scan-status{font-size:12px;color:var(--muted);margin-top:10px;text-align:center;}
 
   /* ---- bottom tabbar-fixed (mobile nice touch) ---- */
@@ -274,6 +273,21 @@
 }
 #scannerOverlay.found .scan-frame-wrap .corner{border-color:#12996B;}
 #scannerOverlay.found .scan-frame-wrap .laser{display:none;}
+/* ---------- Nút quét nổi (kéo-thả được, copy từ trang Kiểm kê) ---------- */
+.fab-scan{
+  position:fixed;right:18px;bottom:22px;z-index:150;
+  width:62px;height:62px;border-radius:50%;border:none;
+  background:linear-gradient(155deg,#2A5FE0,#1B3FA0);
+  box-shadow:0 10px 24px rgba(20,50,140,.38),0 2px 6px rgba(0,0,0,.15);
+  display:flex;align-items:center;justify-content:center;
+  touch-action:none;transition:box-shadow .15s, transform .1s;
+}
+.fab-scan svg{width:26px;height:26px;stroke:#fff;fill:none;pointer-events:none;}
+.fab-scan:active{transform:scale(.94);}
+.fab-scan.dragging{
+  box-shadow:0 16px 34px rgba(20,50,140,.5),0 4px 10px rgba(0,0,0,.25);
+  transform:scale(1.1);transition:none;
+}
 </style>
 </head>
 <body>
@@ -343,6 +357,10 @@
   <button id="footScan"><span class="ic">📷</span>Quét mã</button>
 </footer>
 
+<button class="fab-scan" id="btnScan" type="button" aria-label="Quét mã vạch">
+  <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+</button>
+
 <div id="scannerOverlay">
   <div class="scan-topbar">
     <div class="t">Quét mã vạch sản phẩm</div>
@@ -371,19 +389,14 @@
 
 <div class="modal-overlay" id="scanOverlay">
   <div class="modal">
-    <h3>Quét mã vạch sản phẩm</h3>
-    <p class="hint">Bật camera để quét liên tục, hoặc chụp ảnh / nhập mã thủ công.</p>
+    <h3>Tra mã vạch sản phẩm</h3>
+    <p class="hint">Bấm nút camera nổi ở góc màn hình để quét, hoặc nhập mã thủ công bên dưới.</p>
 
     <button class="scan-photo-btn" id="toggleLiveScan" type="button" style="width:100%;border:none;cursor:pointer;">
       <span class="ic">🎥</span>
-      <span>Bật camera quét</span>
+      <span>Quét lại bằng camera</span>
     </button>
 
-    <label class="scan-photo-btn" id="scanPhotoBtn">
-      <span class="ic">📷</span>
-      <span>Hoặc chụp 1 ảnh mã vạch</span>
-      <input type="file" accept="image/*" capture="environment" id="scanInput" style="display:none;">
-    </label>
     <div class="scan-status" id="scanStatus"></div>
     <div class="manual-row">
       <input type="text" id="manualCode" placeholder="Hoặc nhập mã sản phẩm / mã vạch">
@@ -393,7 +406,6 @@
     <button class="close" id="closeScan">Đóng</button>
   </div>
 </div>
-<canvas id="scanCanvas"></canvas>
 
 <script>
 (function(){
@@ -1032,7 +1044,7 @@ $("#tabBtnCtkm").onclick = ()=>setTab("ctkm");
 $("#tabBtnTonkho").onclick = ()=>setTab("tonkho");
 $("#footCtkm").onclick = ()=>setTab("ctkm");
 $("#footTonkho").onclick = ()=>setTab("tonkho");
-$("#footScan").onclick = ()=>openScanModal();
+$("#footScan").onclick = ()=>openScanner();
 
 /* ============ EVENTS: uploads / store / search ============ */
 $("#storeSelect").onchange = (e)=>{
@@ -1100,7 +1112,7 @@ function closeScanModal(){
   $("#scanOverlay").classList.remove("show");
   closeScanner();
 }
-$("#openScan").onclick = openScanModal;
+$("#openScan").onclick = openScanner;
 $("#closeScan").onclick = closeScanModal;
 $("#scanOverlay").addEventListener("click", (e)=>{ if(e.target.id==="scanOverlay") closeScanModal(); });
 
@@ -1354,6 +1366,7 @@ function onScanDecoded(decodedText){
   setTimeout(()=>closeScanner(), 320);
 }
 function handleScannedCode(code){
+  $("#scanOverlay").classList.add("show"); // hiện modal kết quả sau khi camera tự đóng
   $("#manualCode").value = code;
   $("#scanStatus").textContent = "Đã nhận diện: " + code;
   lookupCode(code);
@@ -1361,48 +1374,87 @@ function handleScannedCode(code){
 
 $("#toggleLiveScan").onclick = openScanner;
 
-$("#scanInput").onchange = async (e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  $("#scanStatus").textContent = "Đang nhận diện mã vạch...";
-  $("#scanResult").innerHTML = "";
-  try{
-    const dataUrl = await new Promise((res,rej)=>{
-      const r = new FileReader();
-      r.onload = ()=>res(r.result);
-      r.onerror = rej;
-      r.readAsDataURL(file);
-    });
-    const img = await new Promise((res,rej)=>{
-      const im = new Image();
-      im.onload = ()=>res(im);
-      im.onerror = rej;
-      im.src = dataUrl;
-    });
-    const cv = document.createElement("canvas");
-    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
-    const cctx = cv.getContext("2d", { willReadFrequently: true });
-    cctx.drawImage(img, 0, 0);
-    const imageData = cctx.getImageData(0, 0, cv.width, cv.height);
+/* ---- Nút quét nổi kéo-thả — giữ và kéo tới vị trí thuận tay, vị trí được nhớ lại ---- */
+const FAB_POS_KEY = "ctkm_fabPos";
+function loadFabPos(){
+  try{ const raw = localStorage.getItem(FAB_POS_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+function saveFabPos(pos){
+  try{ localStorage.setItem(FAB_POS_KEY, JSON.stringify(pos)); }catch(e){}
+}
+function clampFabPos(left, top){
+  const fab = $("#btnScan");
+  const size = fab.offsetWidth || 62;
+  const margin = 8;
+  const maxLeft = window.innerWidth - size - margin;
+  const maxTop = window.innerHeight - size - margin;
+  return { left: Math.min(Math.max(left, margin), Math.max(margin,maxLeft)), top: Math.min(Math.max(top, margin), Math.max(margin,maxTop)) };
+}
+function applyFabPos(){
+  const fab = $("#btnScan");
+  const pos = loadFabPos();
+  if(!pos) return;
+  const abs = clampFabPos(pos.xPct*window.innerWidth, pos.yPct*window.innerHeight);
+  fab.style.left = abs.left+"px";
+  fab.style.top = abs.top+"px";
+  fab.style.right = "auto";
+  fab.style.bottom = "auto";
+}
+window.addEventListener("resize", applyFabPos);
 
-    await ensureZxingReady();
-    const results = await ZXingWASM.readBarcodes(imageData, {
-      tryHarder: true, tryRotate: true, tryInvert: true,
-      formats: currentScanFormats(), maxNumberOfSymbols: 1
-    });
-    if(results && results.length && results[0].text){
-      $("#scanStatus").textContent = "Đã nhận diện: " + results[0].text;
-      $("#manualCode").value = results[0].text;
-      lookupCode(results[0].text);
-    } else {
-      $("#scanStatus").textContent = "Không nhận diện được mã vạch — thử chụp lại gần hơn, hoặc nhập mã thủ công bên dưới.";
-    }
-  }catch(err){
-    console.error(err);
-    $("#scanStatus").textContent = "Có lỗi khi xử lý ảnh.";
+(function initFabDrag(){
+  const fab = $("#btnScan");
+  let dragging=false, moved=false, suppressClick=false;
+  let startX=0, startY=0, origLeft=0, origTop=0;
+
+  function point(e){
+    if(e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    if(e.changedTouches && e.changedTouches.length) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
   }
-  e.target.value = "";
-};
+  function onStart(e){
+    const p = point(e);
+    const rect = fab.getBoundingClientRect();
+    dragging = true; moved = false;
+    startX = p.x; startY = p.y; origLeft = rect.left; origTop = rect.top;
+  }
+  function onMove(e){
+    if(!dragging) return;
+    const p = point(e);
+    const dx = p.x-startX, dy = p.y-startY;
+    if(!moved && (Math.abs(dx)>6 || Math.abs(dy)>6)){ moved = true; fab.classList.add("dragging"); }
+    if(moved){
+      if(e.cancelable) e.preventDefault();
+      const pos = clampFabPos(origLeft+dx, origTop+dy);
+      fab.style.left = pos.left+"px";
+      fab.style.top = pos.top+"px";
+      fab.style.right = "auto";
+      fab.style.bottom = "auto";
+    }
+  }
+  function onEnd(){
+    if(!dragging) return;
+    dragging = false;
+    if(moved){
+      const rect = fab.getBoundingClientRect();
+      saveFabPos({ xPct: rect.left/window.innerWidth, yPct: rect.top/window.innerHeight });
+      fab.classList.remove("dragging");
+      suppressClick = true;
+    }
+  }
+  fab.addEventListener("touchstart", onStart, {passive:true});
+  fab.addEventListener("touchmove", onMove, {passive:false});
+  fab.addEventListener("touchend", onEnd);
+  fab.addEventListener("touchcancel", onEnd);
+  fab.addEventListener("mousedown", (e)=>onStart(e));
+  document.addEventListener("mousemove", (e)=>{ if(dragging) onMove(e); });
+  document.addEventListener("mouseup", (e)=>onEnd(e));
+  fab.addEventListener("click", (e)=>{
+    if(suppressClick){ suppressClick=false; e.preventDefault(); e.stopPropagation(); return; }
+    openScanner();
+  });
+  applyFabPos();
+})();
 
 /* ============ XUẤT FILE TỒN KHO QUÀ TẶNG (NGUYÊN THÁNG) ============ */
 function exportGiftInventory(){
