@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đối chiếu nhập hàng — Con Cưng</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+  :root{
+    --paper:#EAEEE7;
+    --paper-2:#DEE4DA;
+    --card:#F5F7F2;
+    --ink:#1F2A24;
+    --ink-soft:#54604F;
+    --line:#C4CDBC;
+    --navy:#26392F;
+    --stamp-red:#B23A2E;
+    --stamp-red-bg:#F5DEDA;
+    --stamp-green:#2F6F52;
+    --stamp-green-bg:#DCEBE0;
+    --stamp-amber:#B07A1E;
+    --stamp-amber-bg:#F4E7CC;
+    --stamp-blue:#2C5A73;
+    --stamp-blue-bg:#DAE7EC;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'IBM Plex Sans', system-ui, -apple-system, "Segoe UI", sans-serif;
+    --radius: 3px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(38,57,47,0.035) 28px);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.45;
+    min-height:100vh;
+  }
+
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px;}
+
+  header.top{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    border-bottom:3px solid var(--navy);
+    padding-bottom:14px;margin-bottom:22px;flex-wrap:wrap;gap:10px;
+  }
+  header.top .brand{display:flex;flex-direction:column;gap:2px;}
+  header.top .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-soft);
+  }
+  header.top h1{
+    margin:0;font-size:22px;font-weight:700;letter-spacing:-0.01em;color:var(--navy);
+  }
+
+  nav.tabs{display:flex;gap:2px;}
+  nav.tabs button{
+    font-family:var(--mono);font-size:13px;font-weight:600;
+    background:var(--card);border:1px solid var(--line);border-bottom:none;
+    padding:9px 16px;cursor:pointer;color:var(--ink-soft);
+    border-radius:var(--radius) var(--radius) 0 0;
+    position:relative;top:1px;
+  }
+  nav.tabs button.active{
+    background:var(--paper);color:var(--navy);border-color:var(--navy);
+    border-bottom:1px solid var(--paper);
+  }
+  .tab-panel{
+    border:1px solid var(--navy);background:var(--card);
+    border-radius:0 var(--radius) var(--radius) var(--radius);
+    padding:22px;
+  }
+  .tab-panel[hidden]{display:none;}
+
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;}
+  @media (max-width:760px){.field-row{grid-template-columns:1fr;}}
+
+  label{
+    display:block;font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;font-weight:600;
+  }
+  label small{text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink-soft);opacity:.8;}
+
+  textarea{
+    width:100%;min-height:190px;resize:vertical;
+    font-family:var(--mono);font-size:12.5px;line-height:1.5;
+    padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);
+    background:#fff;color:var(--ink);
+  }
+  textarea:focus, input:focus, button:focus-visible{
+    outline:2px solid var(--stamp-blue);outline-offset:1px;
+  }
+
+  input[type=text]{
+    width:100%;font-family:var(--mono);font-size:13px;
+    padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--ink);
+  }
+
+  .actions{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap;}
+
+  button.primary{
+    font-family:var(--sans);font-weight:600;font-size:14px;
+    background:var(--navy);color:#fff;border:none;
+    padding:11px 22px;border-radius:var(--radius);cursor:pointer;
+  }
+  button.primary:hover{background:#1a2921;}
+  button.ghost{
+    font-family:var(--sans);font-weight:600;font-size:13px;
+    background:transparent;color:var(--navy);border:1px solid var(--navy);
+    padding:10px 18px;border-radius:var(--radius);cursor:pointer;
+  }
+  button.ghost:hover{background:rgba(38,57,47,0.06);}
+  button.small{
+    font-family:var(--mono);font-size:11.5px;
+    background:transparent;border:1px solid var(--line);color:var(--ink-soft);
+    padding:5px 10px;border-radius:var(--radius);cursor:pointer;
+  }
+  button.small:hover{border-color:var(--ink-soft);color:var(--ink);}
+  button.danger:hover{border-color:var(--stamp-red);color:var(--stamp-red);}
+
+  .err{
+    color:var(--stamp-red);font-size:13px;margin-top:10px;font-family:var(--mono);
+    display:none;
+  }
+
+  /* ===== Result ===== */
+  #resultBlock{margin-top:30px;display:none;}
+
+  .stamp-row{display:flex;gap:14px;align-items:stretch;flex-wrap:wrap;margin-bottom:20px;}
+  .stat{
+    flex:1 1 130px;border:1px solid var(--line);background:#fff;border-radius:var(--radius);
+    padding:12px 14px;
+  }
+  .stat .n{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--navy);}
+  .stat .l{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-top:2px;}
+
+  .stamp{
+    flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    border:3px solid currentColor;border-radius:6px;
+    padding:10px 20px;transform:rotate(-3deg);
+    font-family:var(--mono);font-weight:700;font-size:14px;letter-spacing:.06em;
+    text-transform:uppercase;
+  }
+  .stamp.ok{color:var(--stamp-green);}
+  .stamp.warn{color:var(--stamp-amber);}
+  .stamp.bad{color:var(--stamp-red);}
+
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+  .filters{display:flex;gap:6px;flex-wrap:wrap;}
+  .filters button{
+    font-family:var(--mono);font-size:11.5px;
+    background:#fff;border:1px solid var(--line);color:var(--ink-soft);
+    padding:6px 12px;border-radius:20px;cursor:pointer;
+  }
+  .filters button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+  table{width:100%;border-collapse:collapse;background:#fff;font-size:13px;}
+  thead th{
+    text-align:left;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--ink-soft);border-bottom:2px solid var(--navy);
+    padding:8px 10px;background:var(--paper-2);
+  }
+  tbody td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tbody tr:hover{background:var(--paper);}
+  td.mono, th.mono{font-family:var(--mono);}
+  td.num{text-align:right;font-family:var(--mono);}
+  .name-cell{max-width:360px;}
+
+  .badge{
+    display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;
+    padding:3px 8px;border-radius:20px;white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;
+  }
+  .badge.ok{background:var(--stamp-green-bg);color:var(--stamp-green);}
+  .badge.bad{background:var(--stamp-red-bg);color:var(--stamp-red);}
+  .badge.warn{background:var(--stamp-amber-bg);color:var(--stamp-amber);}
+  .badge.extra{background:var(--stamp-blue-bg);color:var(--stamp-blue);}
+
+  .empty{padding:40px 10px;text-align:center;color:var(--ink-soft);font-size:14px;}
+
+  /* ===== History ===== */
+  .hist-item{
+    border:1px solid var(--line);background:#fff;border-radius:var(--radius);
+    padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    cursor:pointer;
+  }
+  .hist-item:hover{border-color:var(--navy);}
+  .hist-left{display:flex;flex-direction:column;gap:3px;}
+  .hist-code{font-family:var(--mono);font-weight:700;color:var(--navy);font-size:14px;}
+  .hist-date{font-family:var(--mono);font-size:11px;color:var(--ink-soft);}
+  .hist-right{display:flex;align-items:center;gap:10px;}
+
+  footer.note{margin-top:34px;font-size:12px;color:var(--ink-soft);font-family:var(--mono);}
+  .toast{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+    background:var(--navy);color:#fff;padding:10px 18px;border-radius:var(--radius);
+    font-size:13px;font-family:var(--sans);opacity:0;pointer-events:none;transition:opacity .2s;
+    z-index:50;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="eyebrow">Kho AGI — Đối chiếu nhập hàng</div>
+      <h1>Bảng kiểm phiếu nhập</h1>
+    </div>
+    <nav class="tabs">
+      <button data-tab="check" class="active">Kiểm tra mới</button>
+      <button data-tab="history">Lịch sử</button>
+    </nav>
+  </header>
+
+  <!-- ===== TAB: CHECK ===== -->
+  <section id="tab-check" class="tab-panel">
+    <div class="field-row">
+      <div>
+        <label>Ghi chú / Mã phiếu <small>(tự nhận nếu có dòng "Mã phiếu:" trong dữ liệu dán)</small></label>
+        <input type="text" id="phieuLabel" placeholder="VD: 675OO26081751100706">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div>
+        <label>1 — Dán dữ liệu YÊU CẦU NHẬP (YCN)</label>
+        <textarea id="ycnInput" placeholder="Dán dữ liệu copy từ trang Yêu cầu nhập (YCN) vào đây..."></textarea>
+      </div>
+      <div>
+        <label>2 — Dán dữ liệu THEO KIỆN (thực nhận)</label>
+        <textarea id="kienInput" placeholder="Dán dữ liệu copy từ trang Theo kiện vào đây..."></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="btnCompare">So sánh</button>
+      <button class="ghost" id="btnClear">Xoá dữ liệu</button>
+      <span class="err" id="errMsg"></span>
+    </div>
+
+    <div id="resultBlock">
+      <div class="stamp-row" id="stampRow"></div>
+
+      <div class="toolbar">
+        <div class="filters" id="filters"></div>
+        <button class="small" id="btnCopy">📋 Copy kết quả</button>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th class="mono">Mã SP</th>
+              <th>Tên sản phẩm</th>
+              <th class="num">SL yêu cầu</th>
+              <th class="num">SL theo kiện</th>
+              <th class="num">Lệch</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="resultBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TAB: HISTORY ===== -->
+  <section id="tab-history" class="tab-panel" hidden>
+    <div class="toolbar">
+      <div class="eyebrow" style="font-family:var(--mono);font-size:11px;color:var(--ink-soft);">
+        Các phiếu đã kiểm tra, lưu trên trình duyệt này
+      </div>
+      <button class="small danger" id="btnClearHistory">Xoá toàn bộ lịch sử</button>
+    </div>
+    <div id="historyList"></div>
+  </section>
+
+  <footer class="note">
+    Dữ liệu chỉ lưu trong trình duyệt của bạn (localStorage) — không gửi lên máy chủ nào.
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ LOGIC ĐỐI CHIẾU ============ */
+function normKey(s){
+  s = String(s).trim();
+  if(/^\d+$/.test(s)) s = s.replace(/^0+(?=\d)/, '');
+  return s;
+}
+function isHeaderRow(cells){
+  return cells[0] && cells[0].trim() === 'Mã sản phẩm';
+}
+function extractMaPhieu(text){
+  const m = text.match(/Mã phiếu:\s*([^\t\n\r]+)/);
+  return m ? m[1].trim() : null;
+}
+// Khi copy trực tiếp từ web (không qua Excel), mỗi dòng sản phẩm bị tách làm 2 dòng:
+// dòng 1 chỉ có Mã SP (không tab), dòng 2 bắt đầu bằng tab chứa phần còn lại.
+// Hàm này gộp lại thành 1 dòng để parser xử lý thống nhất cho cả 2 kiểu paste (Excel / web).
+function normalizeLines(text){
+  const raw = text.split(/\r?\n/);
+  const out = [];
+  for(let i=0;i<raw.length;i++){
+    const line = raw[i];
+    if(/^\d+$/.test(line.trim()) && i+1 < raw.length && raw[i+1].startsWith('\t')){
+      out.push(line.trim() + raw[i+1]);
+      i++;
+    } else {
+      out.push(line);
+    }
+  }
+  return out;
+}
+function parseYCN(text){
+  const lines = normalizeLines(text);
+  const map = new Map();
+  let started = false;
+  for(const line of lines){
+    const cells = line.split('\t');
+    if(!started){ if(isHeaderRow(cells)) started = true; continue; }
+    const first = (cells[0]||'').trim();
+    if(!/^\d+$/.test(first)) continue;
+    const name = (cells[2]||'').trim();
+    const slYeuCau = parseInt(cells[3],10) || 0;
+    map.set(normKey(first), { msp:first, name, slYeuCau });
+  }
+  return map;
+}
+function parseTheoKien(text){
+  const lines = normalizeLines(text);
+  const map = new Map();
+  let started = false;
+  for(const line of lines){
+    const cells = line.split('\t');
+    if(!started){ if(isHeaderRow(cells)) started = true; continue; }
+    const first = (cells[0]||'').trim();
+    if(first.startsWith('Mã kiện')) continue;
+    if(!/^\d+$/.test(first)) continue;
+    const name = (cells[2]||'').trim();
+    const sl = parseInt(cells[3],10) || 0;
+    const key = normKey(first);
+    if(map.has(key)){
+      const cur = map.get(key);
+      cur.sl += sl;
+      if(!cur.name) cur.name = name;
+    } else {
+      map.set(key, { msp:first, name, sl });
+    }
+  }
+  return map;
+}
+function compare(ycnText, kienText){
+  const ycn = parseYCN(ycnText);
+  const kien = parseTheoKien(kienText);
+  const keys = new Set([...ycn.keys(), ...kien.keys()]);
+  const rows = [];
+  for(const key of keys){
+    const y = ycn.get(key), k = kien.get(key);
+    const msp = (y&&y.msp) || (k&&k.msp);
+    const name = (y&&y.name) || (k&&k.name) || '';
+    const slYeuCau = y ? y.slYeuCau : 0;
+    const slTheoKien = k ? k.sl : 0;
+    const lech = slYeuCau - slTheoKien;
+    let trangThai;
+    if(!y && k) trangThai = 'Phát sinh ngoài phiếu';
+    else if(slTheoKien === 0) trangThai = 'Không về hàng';
+    else if(lech === 0) trangThai = 'Nhập hết';
+    else trangThai = 'Chênh lệch';
+    rows.push({ msp, name, slYeuCau, slTheoKien, lech, trangThai });
+  }
+  rows.sort((a,b)=> a.msp.localeCompare(b.msp, 'vi', {numeric:true}));
+  return rows;
+}
+
+/* ============ UI STATE ============ */
+let currentRows = [];
+let currentFilter = 'all';
+const STORAGE_KEY = 'nhaphang_history_v1';
+
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function badgeClass(status){
+  if(status === 'Nhập hết') return 'ok';
+  if(status === 'Không về hàng') return 'bad';
+  if(status === 'Phát sinh ngoài phiếu') return 'extra';
+  return 'warn';
+}
+
+function renderStamp(rows){
+  const totalYC = rows.reduce((s,r)=>s+r.slYeuCau,0);
+  const totalTK = rows.reduce((s,r)=>s+r.slTheoKien,0);
+  const totalLech = totalYC - totalTK;
+  const soLuongMismatch = rows.filter(r=>r.trangThai!=='Nhập hết').length;
+
+  let stampClass = 'ok', stampText = 'KHỚP HOÀN TOÀN';
+  if(rows.some(r=>r.trangThai==='Không về hàng')){ stampClass='bad'; stampText='CÓ SP KHÔNG VỀ HÀNG'; }
+  else if(totalLech !== 0){ stampClass='warn'; stampText='CÓ CHÊNH LỆCH'; }
+
+  $('#stampRow').innerHTML = `
+    <div class="stat"><div class="n">${rows.length}</div><div class="l">Mã SP</div></div>
+    <div class="stat"><div class="n">${totalYC}</div><div class="l">SL yêu cầu</div></div>
+    <div class="stat"><div class="n">${totalTK}</div><div class="l">SL theo kiện</div></div>
+    <div class="stat"><div class="n">${totalLech}</div><div class="l">Tổng lệch</div></div>
+    <div class="stat"><div class="n">${soLuongMismatch}</div><div class="l">SP cần xem lại</div></div>
+    <div class="stamp ${stampClass}">${stampText}</div>
+  `;
+  return { totalYC, totalTK, totalLech, stampText };
+}
+
+const FILTER_DEFS = [
+  { key:'all', label:'Tất cả' },
+  { key:'Không về hàng', label:'Không về hàng' },
+  { key:'Chênh lệch', label:'Chênh lệch' },
+  { key:'Nhập hết', label:'Nhập hết' },
+  { key:'Phát sinh ngoài phiếu', label:'Phát sinh ngoài phiếu' },
+];
+
+function renderFilters(rows){
+  const counts = {};
+  rows.forEach(r=> counts[r.trangThai] = (counts[r.trangThai]||0)+1 );
+  $('#filters').innerHTML = FILTER_DEFS.map(f=>{
+    const n = f.key==='all' ? rows.length : (counts[f.key]||0);
+    if(f.key!=='all' && n===0) return '';
+    return `<button data-filter="${f.key}" class="${currentFilter===f.key?'active':''}">${f.label} (${n})</button>`;
+  }).join('');
+  $$('#filters button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      currentFilter = b.dataset.filter;
+      renderTable(currentRows);
+      renderFilters(currentRows);
+    });
+  });
+}
+
+function renderTable(rows){
+  const filtered = currentFilter==='all' ? rows : rows.filter(r=>r.trangThai===currentFilter);
+  if(filtered.length===0){
+    $('#resultBody').innerHTML = `<tr><td colspan="6" class="empty">Không có dòng nào phù hợp bộ lọc.</td></tr>`;
+    return;
+  }
+  $('#resultBody').innerHTML = filtered.map(r=>`
+    <tr>
+      <td class="mono">${r.msp}</td>
+      <td class="name-cell">${escapeHtml(r.name)}</td>
+      <td class="num">${r.slYeuCau}</td>
+      <td class="num">${r.slTheoKien}</td>
+      <td class="num">${r.lech}</td>
+      <td><span class="badge ${badgeClass(r.trangThai)}">${r.trangThai}</span></td>
+    </tr>
+  `).join('');
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function runCompare(){
+  const err = $('#errMsg');
+  err.style.display = 'none';
+  const ycnText = $('#ycnInput').value;
+  const kienText = $('#kienInput').value;
+
+  if(!ycnText.trim() || !kienText.trim()){
+    err.textContent = 'Cần dán đủ cả 2 dữ liệu (YCN và Theo kiện) trước khi so sánh.';
+    err.style.display = 'block';
+    return;
+  }
+
+  const rows = compare(ycnText, kienText);
+  if(rows.length === 0){
+    err.textContent = 'Không nhận diện được dòng dữ liệu nào. Kiểm tra lại định dạng dữ liệu đã dán (cần có dòng tiêu đề "Mã sản phẩm...").';
+    err.style.display = 'block';
+    return;
+  }
+
+  currentRows = rows;
+  currentFilter = 'all';
+  const summary = renderStamp(rows);
+  renderFilters(rows);
+  renderTable(rows);
+  $('#resultBlock').style.display = 'block';
+
+  // auto label
+  let label = $('#phieuLabel').value.trim();
+  if(!label){
+    label = extractMaPhieu(ycnText) || extractMaPhieu(kienText) || ('Phiếu ' + new Date().toLocaleString('vi-VN'));
+    $('#phieuLabel').value = label;
+  }
+
+  saveHistory(label, rows, summary);
+}
+
+function saveHistory(label, rows, summary){
+  const list = getHistory();
+  const entry = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+    label,
+    date: new Date().toISOString(),
+    summary,
+    rows,
+  };
+  list.unshift(entry);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  renderHistoryList();
+}
+
+function getHistory(){
+  try{
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  }catch(e){ return []; }
+}
+
+function renderHistoryList(){
+  const list = getHistory();
+  const el = $('#historyList');
+  if(list.length===0){
+    el.innerHTML = `<div class="empty">Chưa có phiếu nào được lưu.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(item=>{
+    const d = new Date(item.date);
+    const dateStr = d.toLocaleString('vi-VN');
+    const cls = item.summary.stampText === 'KHỚP HOÀN TOÀN' ? 'ok'
+      : (item.summary.stampText === 'CÓ SP KHÔNG VỀ HÀNG' ? 'bad' : 'warn');
+    return `
+      <div class="hist-item" data-id="${item.id}">
+        <div class="hist-left">
+          <div class="hist-code">${escapeHtml(item.label)}</div>
+          <div class="hist-date">${dateStr} · ${item.rows.length} mã SP · lệch ${item.summary.totalLech}</div>
+        </div>
+        <div class="hist-right">
+          <span class="badge ${cls}">${item.summary.stampText}</span>
+          <button class="small danger" data-del="${item.id}">Xoá</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  $$('.hist-item').forEach(elm=>{
+    elm.addEventListener('click', (e)=>{
+      if(e.target.dataset.del) return;
+      const id = elm.dataset.id;
+      const item = getHistory().find(x=>x.id===id);
+      if(!item) return;
+      currentRows = item.rows;
+      currentFilter = 'all';
+      $('#phieuLabel').value = item.label;
+      renderStamp(item.rows);
+      renderFilters(item.rows);
+      renderTable(item.rows);
+      $('#resultBlock').style.display = 'block';
+      switchTab('check');
+    });
+  });
+  $$('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const id = btn.dataset.del;
+      const list = getHistory().filter(x=>x.id!==id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      renderHistoryList();
+      toast('Đã xoá khỏi lịch sử');
+    });
+  });
+}
+
+function copyResult(){
+  const filtered = currentFilter==='all' ? currentRows : currentRows.filter(r=>r.trangThai===currentFilter);
+  const header = ['Mã SP','Tên sản phẩm','SL yêu cầu','SL theo kiện','Lệch','Trạng thái'].join('\t');
+  const body = filtered.map(r=>[r.msp,r.name,r.slYeuCau,r.slTheoKien,r.lech,r.trangThai].join('\t')).join('\n');
+  const text = header + '\n' + body;
+  navigator.clipboard.writeText(text).then(()=>{
+    toast('Đã copy kết quả — dán trực tiếp vào Excel/Zalo');
+  }).catch(()=>{
+    toast('Không copy được — trình duyệt chặn clipboard');
+  });
+}
+
+function switchTab(name){
+  $$('nav.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.tab===name));
+  $('#tab-check').hidden = name!=='check';
+  $('#tab-history').hidden = name!=='history';
+}
+
+/* ============ INIT ============ */
+$('#btnCompare').addEventListener('click', runCompare);
+$('#btnClear').addEventListener('click', ()=>{
+  $('#ycnInput').value=''; $('#kienInput').value=''; $('#phieuLabel').value='';
+  $('#resultBlock').style.display='none';
+  $('#errMsg').style.display='none';
+});
+$('#btnCopy').addEventListener('click', copyResult);
+$('#btnClearHistory').addEventListener('click', ()=>{
+  if(confirm('Xoá toàn bộ lịch sử đã lưu trên trình duyệt này?')){
+    localStorage.removeItem(STORAGE_KEY);
+    renderHistoryList();
+    toast('Đã xoá toàn bộ lịch sử');
+  }
+});
+$$('nav.tabs button').forEach(b=>{
+  b.addEventListener('click', ()=> switchTab(b.dataset.tab));
+});
+
+renderHistoryList();
+</script>
+</body>
+</html>
