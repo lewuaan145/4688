@@ -603,7 +603,7 @@ function exportKienExcel(){
     return;
   }
   const data = currentKienList.map(r=>[r.msp, r.sl]);
-  const ws = XLSX.utils.aoa_to_sheet([['Mã SP','Số lượng'], ...data]);
+  const ws = XLSX.utils.aoa_to_sheet([['ma','sl'], ...data]);
   ws['!cols'] = [{wch:16},{wch:10}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Tong SP');
