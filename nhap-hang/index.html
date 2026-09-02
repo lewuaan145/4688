@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Đối chiếu nhập hàng — Con Cưng</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
@@ -248,6 +249,7 @@
       <div class="toolbar">
         <div class="filters" id="filters"></div>
         <button class="small" id="btnCopy">📋 Copy kết quả</button>
+        <button class="small" id="btnExportKien">📤 Xuất Excel — Tổng SP theo kiện</button>
       </div>
 
       <div style="overflow-x:auto;">
@@ -375,11 +377,13 @@ function compare(ycnText, kienText){
     rows.push({ msp, name, slYeuCau, slTheoKien, lech, trangThai });
   }
   rows.sort((a,b)=> a.msp.localeCompare(b.msp, 'vi', {numeric:true}));
-  return rows;
+  const kienList = Array.from(kien.values()).sort((a,b)=> a.msp.localeCompare(b.msp, 'vi', {numeric:true}));
+  return { rows, kienList };
 }
 
 /* ============ UI STATE ============ */
 let currentRows = [];
+let currentKienList = [];
 let currentFilter = 'all';
 const STORAGE_KEY = 'nhaphang_history_v1';
 
@@ -480,7 +484,7 @@ function runCompare(){
     return;
   }
 
-  const rows = compare(ycnText, kienText);
+  const { rows, kienList } = compare(ycnText, kienText);
   if(rows.length === 0){
     err.textContent = 'Không nhận diện được dòng dữ liệu nào. Kiểm tra lại định dạng dữ liệu đã dán (cần có dòng tiêu đề "Mã sản phẩm...").';
     err.style.display = 'block';
@@ -488,6 +492,7 @@ function runCompare(){
   }
 
   currentRows = rows;
+  currentKienList = kienList;
   currentFilter = 'all';
   const summary = renderStamp(rows);
   renderFilters(rows);
@@ -501,10 +506,10 @@ function runCompare(){
     $('#phieuLabel').value = label;
   }
 
-  saveHistory(label, rows, summary);
+  saveHistory(label, rows, summary, kienList);
 }
 
-function saveHistory(label, rows, summary){
+function saveHistory(label, rows, summary, kienList){
   const list = getHistory();
   const entry = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
@@ -512,6 +517,7 @@ function saveHistory(label, rows, summary){
     date: new Date().toISOString(),
     summary,
     rows,
+    kienList: kienList || [],
   };
   list.unshift(entry);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
@@ -557,6 +563,7 @@ function renderHistoryList(){
       const item = getHistory().find(x=>x.id===id);
       if(!item) return;
       currentRows = item.rows;
+      currentKienList = item.kienList || [];
       currentFilter = 'all';
       $('#phieuLabel').value = item.label;
       renderStamp(item.rows);
@@ -590,6 +597,21 @@ function copyResult(){
   });
 }
 
+function exportKienExcel(){
+  if(!currentKienList || currentKienList.length===0){
+    toast('Chưa có dữ liệu Theo kiện để xuất — so sánh trước đã nhé.');
+    return;
+  }
+  const data = currentKienList.map(r=>[r.msp, r.sl]);
+  const ws = XLSX.utils.aoa_to_sheet([['Mã SP','Số lượng'], ...data]);
+  ws['!cols'] = [{wch:16},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Tong SP');
+  const label = ($('#phieuLabel').value.trim() || 'phieu').replace(/[\\/:*?"<>|]/g,'-');
+  XLSX.writeFile(wb, `tong-sp-theo-kien_${label}.xlsx`);
+  toast('Đã xuất file Excel');
+}
+
 function switchTab(name){
   $$('nav.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.tab===name));
   $('#tab-check').hidden = name!=='check';
@@ -604,6 +626,7 @@ $('#btnClear').addEventListener('click', ()=>{
   $('#errMsg').style.display='none';
 });
 $('#btnCopy').addEventListener('click', copyResult);
+$('#btnExportKien').addEventListener('click', exportKienExcel);
 $('#btnClearHistory').addEventListener('click', ()=>{
   if(confirm('Xoá toàn bộ lịch sử đã lưu trên trình duyệt này?')){
     localStorage.removeItem(STORAGE_KEY);
