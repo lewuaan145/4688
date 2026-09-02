@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<title>Check Date – Cận HSD</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --blue-900:#0d3b66;
+    --blue-700:#145da0;
+    --blue-600:#1a6cb8;
+    --blue-500:#2f80c4;
+    --blue-100:#dcebf8;
+    --blue-50:#eef5fc;
+    --ink:#10202f;
+    --muted:#5c7186;
+    --line:#d9e4ee;
+    --surface:#ffffff;
+    --bg:#f2f7fb;
+    --danger:#c8402f;
+    --danger-bg:#fbe9e7;
+    --warn:#c9711a;
+    --warn-bg:#fdf0e0;
+    --caution:#a3821a;
+    --caution-bg:#fbf5da;
+    --safe:#217a4e;
+    --safe-bg:#e5f5ec;
+    --dead:#5c5c66;
+    --dead-bg:#e9e9ee;
+    --radius:14px;
+    --radius-sm:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .shell{max-width:520px;margin:0 auto;min-height:100vh;background:var(--bg);display:flex;flex-direction:column;}
+
+  header.topbar{
+    background:var(--blue-900);
+    color:#fff;
+    padding:14px 16px 16px;
+    position:sticky;top:0;z-index:20;
+  }
+  .topbar-row{display:flex;align-items:center;gap:10px;}
+  .back-link{
+    color:#cfe3f5;text-decoration:none;font-size:14px;
+    display:flex;align-items:center;gap:4px;flex-shrink:0;
+  }
+  .topbar h1{
+    font-size:18px;margin:0;font-weight:700;letter-spacing:-0.01em;flex:1;
+  }
+  .topbar .sub{font-size:12.5px;color:#b9d4ec;margin-top:2px;}
+
+  .upload-card{
+    margin:14px 16px 0;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px;
+  }
+  .upload-row{display:flex;align-items:center;gap:12px;}
+  .upload-row + .upload-row{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+  .upload-label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;}
+  .file-btn{
+    background:var(--blue-700);color:#fff;border:none;
+    padding:10px 16px;border-radius:var(--radius-sm);
+    font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0;
+  }
+  .file-btn.secondary{background:var(--blue-500);}
+  .file-btn:active{background:var(--blue-900);}
+  .file-status{font-size:13px;color:var(--muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .file-status.ok{color:var(--safe);font-weight:600;}
+  .file-status.err{color:var(--danger);font-weight:600;}
+  input[type=file]{display:none;}
+
+  nav.tabs{
+    display:flex;gap:6px;margin:14px 16px 0;
+    background:var(--blue-100);border-radius:12px;padding:4px;
+  }
+  nav.tabs button{
+    flex:1;border:none;background:transparent;color:var(--blue-900);
+    padding:9px 4px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;
+  }
+  nav.tabs button.active{background:var(--surface);box-shadow:0 1px 3px rgba(13,59,102,.18);}
+  nav.tabs button:disabled{opacity:.45;cursor:default;}
+
+  main{flex:1;padding:14px 16px 40px;}
+  .hidden{display:none !important;}
+
+  .empty-state{
+    margin-top:40px;text-align:center;color:var(--muted);font-size:14px;padding:0 20px;
+  }
+  .empty-state .glyph{font-size:34px;display:block;margin-bottom:10px;}
+
+  .stat-row{display:flex;gap:8px;margin-bottom:14px;}
+  .stat-chip{
+    flex:1;background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius-sm);padding:10px 8px;text-align:center;
+  }
+  .stat-chip .n{font-size:20px;font-weight:800;line-height:1.1;}
+  .stat-chip .l{font-size:11px;color:var(--muted);margin-top:2px;}
+  .stat-chip.new .n{color:var(--blue-700);}
+  .stat-chip.done .n{color:var(--safe);}
+  .stat-chip.changed .n{color:var(--warn);}
+
+  .group-head{
+    display:flex;align-items:center;justify-content:space-between;
+    margin:18px 0 8px;cursor:pointer;user-select:none;
+  }
+  .group-head:first-child{margin-top:0;}
+  .group-head h2{font-size:14.5px;margin:0;font-weight:700;}
+  .group-head .count{font-size:12.5px;color:var(--muted);font-weight:600;}
+  .group-body{display:flex;flex-direction:column;gap:8px;}
+  .group-body.collapsed{display:none;}
+
+  .search-wrap{display:flex;gap:8px;margin-bottom:10px;}
+  .search-wrap input[type=text]{
+    flex:1;border:1px solid var(--line);border-radius:var(--radius-sm);
+    padding:10px 12px;font-size:14px;background:var(--surface);color:var(--ink);
+  }
+  .search-wrap select{
+    border:1px solid var(--line);border-radius:var(--radius-sm);
+    padding:10px 8px;font-size:13px;background:var(--surface);color:var(--ink);max-width:130px;
+  }
+  .result-count{font-size:12px;color:var(--muted);margin:2px 2px 10px;}
+  .result-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px;}
+  .result-row .result-count{margin:0;}
+  .export-btn{
+    flex-shrink:0;background:var(--blue-50);color:var(--blue-700);border:1px solid var(--blue-100);
+    padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;
+  }
+  .export-btn:active{background:var(--blue-100);}
+
+  .filter-checkbox{
+    display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink);
+    margin:-2px 0 10px;cursor:pointer;user-select:none;
+  }
+  .filter-checkbox input{width:15px;height:15px;flex-shrink:0;}
+  .filter-checkbox.disabled{color:var(--muted);cursor:not-allowed;}
+
+  .card{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
+    padding:11px 12px;border-left:5px solid var(--line);
+  }
+  .card .name{font-size:14px;font-weight:700;line-height:1.35;margin-bottom:4px;}
+  .card .meta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:x;row-gap:2px;}
+  .card .meta span{margin-right:10px;}
+  .card .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;}
+  .badge{
+    font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;
+    background:var(--blue-50);color:var(--blue-700);
+  }
+  .badge.tier-red{background:var(--danger-bg);color:var(--danger);}
+  .badge.tier-orange{background:var(--warn-bg);color:var(--warn);}
+  .badge.tier-yellow{background:var(--caution-bg);color:var(--caution);}
+  .badge.tier-green{background:var(--safe-bg);color:var(--safe);}
+  .badge.tier-dead{background:var(--dead-bg);color:var(--dead);}
+
+  .card.tier-red{border-left-color:var(--danger);}
+  .card.tier-orange{border-left-color:var(--warn);}
+  .card.tier-yellow{border-left-color:var(--caution);}
+  .card.tier-green{border-left-color:var(--safe);}
+  .card.tier-dead{border-left-color:var(--dead);}
+
+  .diff-list{margin-top:6px;font-size:12px;color:var(--ink);}
+  .diff-list div{display:flex;gap:6px;padding:2px 0;}
+  .diff-list .k{color:var(--muted);flex-shrink:0;}
+  .diff-list .old{color:var(--danger);text-decoration:line-through;}
+  .diff-list .new{color:var(--safe);font-weight:600;}
+  .price-computed{color:var(--warn);font-style:italic;}
+
+  .load-more{
+    display:block;width:100%;margin-top:12px;padding:10px;
+    background:var(--blue-50);border:1px dashed var(--blue-500);color:var(--blue-700);
+    border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;
+  }
+
+  footer.note{padding:10px 16px 24px;font-size:11.5px;color:var(--muted);text-align:center;}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar">
+    <div class="topbar-row">
+      <a class="back-link" href="../">← Trang chủ</a>
+      <h1>📅 Check Date</h1>
+    </div>
+    <div class="sub">Cận hạn sử dụng · gộp & tra tồn kho</div>
+  </header>
+
+  <div class="upload-card">
+    <div class="upload-row">
+      <button class="file-btn secondary" id="pickBtnCu">Chọn file</button>
+      <div>
+        <div class="upload-label">🕓 File CŨ (đợt trước)</div>
+        <div class="file-status" id="fileStatusCu">Chưa tải file</div>
+      </div>
+    </div>
+    <input type="file" id="fileInputCu" accept=".xlsx,.xls">
+
+    <div class="upload-row">
+      <button class="file-btn" id="pickBtnMoi">Chọn file</button>
+      <div>
+        <div class="upload-label">🆕 File MỚI (đợt hiện tại)</div>
+        <div class="file-status" id="fileStatusMoi">Chưa tải file</div>
+      </div>
+    </div>
+    <input type="file" id="fileInputMoi" accept=".xlsx,.xls">
+
+    <div class="upload-row">
+      <button class="file-btn secondary" id="pickBtnTkkk">Chọn file</button>
+      <div>
+        <div class="upload-label">📦 File TKKK (tồn kho — không bắt buộc)</div>
+        <div class="file-status" id="fileStatusTkkk">Chưa tải file</div>
+      </div>
+    </div>
+    <input type="file" id="fileInputTkkk" accept=".xlsx,.xls">
+  </div>
+
+  <nav class="tabs">
+    <button class="tab-btn" data-tab="chitiet" disabled>📋 Chi tiết</button>
+    <button class="tab-btn active" data-tab="tonghop" disabled>📊 Tổng hợp</button>
+  </nav>
+
+  <main>
+
+    <div id="emptyState" class="empty-state">
+      <span class="glyph">📂</span>
+      Tải lên <strong>file MỚI</strong> (đợt hiện tại) để xem Chi tiết / Tổng hợp. Tải thêm <strong>file CŨ</strong> để bật bộ lọc "đổi tình trạng".
+    </div>
+
+    <section id="tab-chitiet" class="hidden">
+      <div class="search-wrap">
+        <input type="text" id="chitietSearch" placeholder="Tìm tên / mã định danh / mã hàng…">
+        <select id="chitietFilter"><option value="">Tất cả tình trạng</option></select>
+      </div>
+      <label class="filter-checkbox">
+        <input type="checkbox" id="chitietHetHan"> Chỉ SP đã hết hạn
+      </label>
+      <label class="filter-checkbox">
+        <input type="checkbox" id="chitietTangDon"> Chỉ SP tặng theo đơn hàng
+      </label>
+      <div class="result-row">
+        <div class="result-count" id="chitietCount"></div>
+        <button class="export-btn" id="chitietExport">📤 Xuất Excel</button>
+      </div>
+      <div class="group-body" id="chitietList"></div>
+      <button class="load-more hidden" id="chitietMore">Xem thêm</button>
+    </section>
+
+    <section id="tab-tonghop">
+      <div class="search-wrap">
+        <input type="text" id="tonghopSearch" placeholder="Tìm tên / mã hàng…">
+      </div>
+      <label class="filter-checkbox" id="tonghopChangedWrap">
+        <input type="checkbox" id="tonghopChangedOnly"> Chỉ hiện SP đổi tình trạng / mức giảm (cần tải file CŨ)
+      </label>
+      <label class="filter-checkbox">
+        <input type="checkbox" id="tonghopHideZero"> Ẩn SP hết tồn kho (tồn tổng = 0)
+      </label>
+      <label class="filter-checkbox">
+        <input type="checkbox" id="tonghopHetHan"> Chỉ SP đã hết hạn
+      </label>
+      <label class="filter-checkbox">
+        <input type="checkbox" id="tonghopTangDon"> Chỉ SP tặng theo đơn hàng
+      </label>
+      <div class="result-row">
+        <div class="result-count" id="tonghopCount"></div>
+        <button class="export-btn" id="tonghopExport">📤 Xuất Excel</button>
+      </div>
+      <div class="group-body" id="tonghopList"></div>
+      <button class="load-more hidden" id="tonghopMore">Xem thêm</button>
+    </section>
+
+  </main>
+
+  <footer class="note">
+    Dữ liệu chỉ xử lý trong trình duyệt, không gửi lên server nào. Tự lưu lại trên máy này — qua ngày mới, file MỚI sẽ tự chuyển thành file CŨ.
+    <br><a href="#" id="resetBtn" style="color:var(--blue-700);">🗑 Xoá dữ liệu đã lưu</a>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- helpers ----------
+  const $ = (sel, ctx) => (ctx||document).querySelector(sel);
+  const $$ = (sel, ctx) => Array.from((ctx||document).querySelectorAll(sel));
+
+  function norm(s){ return (s===undefined||s===null) ? "" : String(s).trim(); }
+  function normKey(s){ return norm(s).toLowerCase().replace(/\s+/g," "); }
+
+  // Parse a Vietnamese dd/mm/yyyy date string (or Excel serial) -> Date or null
+  function parseVNDate(v){
+    if(v===undefined||v===null||v==="") return null;
+    if(typeof v === "number"){
+      const d = XLSX.SSF.parse_date_code(v);
+      if(!d) return null;
+      return new Date(d.y, d.m-1, d.d);
+    }
+    const s = norm(v);
+    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+    const parsed = new Date(s);
+    return isNaN(parsed) ? null : parsed;
+  }
+
+  function daysLeft(dateObj){
+    if(!dateObj) return null;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const d = new Date(dateObj); d.setHours(0,0,0,0);
+    return Math.round((d - today) / 86400000);
+  }
+
+  function tierOf(days){
+    if(days===null) return {cls:"", label:""};
+    if(days<=0) return {cls:"tier-dead", label:"Hết hạn"};
+    if(days<=30) return {cls:"tier-red", label:"≤30 ngày"};
+    if(days<=60) return {cls:"tier-orange", label:"31–60 ngày"};
+    if(days<=90) return {cls:"tier-yellow", label:"61–90 ngày"};
+    return {cls:"tier-green", label:">90 ngày"};
+  }
+
+  function fmtMoney(v){
+    const n = Number(v);
+    if(isNaN(n)) return norm(v);
+    return n.toLocaleString("vi-VN") + "đ";
+  }
+
+  function escapeHtml(s){
+    return norm(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  // ---------- generic sheet reader: finds header row by matching known column names,
+  // then maps every subsequent row to an object keyed by canonical field names ----------
+  const FIELD_ALIASES = {
+    maDinhDanh: ["mã định danh"],
+    tenDot: ["tên đợt"],
+    maSanPham: ["mã sản phẩm"],
+    maThamChieu: ["mã tham chiếu"],
+    tenSanPham: ["tên sản phẩm"],
+    hanSuDung: ["hạn sử dụng"],
+    ngaySDConLai: ["ngày sd còn lại"],
+    loaiSale: ["loại sale"],
+    maPhieuXuat: ["mã phiếu xuất"],
+    slDaBan: ["sl đã bán"],
+    giaBan: ["giá bán"],
+    giaCanHSD: ["giá cận hsd"],
+    giaCanCu: ["giá cận cũ"],
+    tonTong: ["tồn tổng"],
+    tonHot: ["tồn hot"],
+    tinhTrang: ["tình trạng"],
+    soLuong: ["số lượng"],
+    cuaHang: ["cửa hàng"]
+  };
+
+  function findHeaderRow(rows){
+    for(let r=0;r<Math.min(rows.length,10);r++){
+      const row = rows[r] || [];
+      const keys = row.map(normKey);
+      if(keys.some(k=>k==="mã sản phẩm") && keys.some(k=>k==="tên sản phẩm")){
+        return r;
+      }
+    }
+    return -1;
+  }
+
+  function readSheetObjects(ws){
+    if(!ws) return [];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:""});
+    const headerIdx = findHeaderRow(rows);
+    if(headerIdx === -1) return [];
+    const headerRow = rows[headerIdx].map(normKey);
+
+    const colIndex = {};
+    Object.keys(FIELD_ALIASES).forEach(field=>{
+      const aliases = FIELD_ALIASES[field];
+      let idx = -1;
+      for(let c=0;c<headerRow.length;c++){
+        if(aliases.includes(headerRow[c])){ idx = c; break; }
+      }
+      colIndex[field] = idx;
+    });
+
+    const out = [];
+    for(let r=headerIdx+1; r<rows.length; r++){
+      const row = rows[r];
+      if(!row || row.length===0) continue;
+      const get = f => colIndex[f]===-1 ? "" : (row[colIndex[f]] ?? "");
+      const maDinhDanh = norm(get("maDinhDanh"));
+      const maSanPham = norm(get("maSanPham"));
+      const tenSanPham = norm(get("tenSanPham"));
+      if(!maDinhDanh && !maSanPham && !tenSanPham) continue; // skip blank rows
+      if(maSanPham === "0" && tenSanPham === "0") continue; // skip placeholder rows
+
+      const hanRaw = get("hanSuDung");
+      const hanDate = parseVNDate(hanRaw);
+      const storedRaw = get("ngaySDConLai");
+      const dLeftStored = storedRaw!=="" && !isNaN(Number(storedRaw)) ? Number(storedRaw) : null;
+      // "live" = recomputed against today, used for the urgency badge/color so it's
+      // always current even if the file was exported days ago.
+      const dLeftLive = hanDate ? daysLeft(hanDate) : dLeftStored;
+
+      out.push({
+        maDinhDanh,
+        tenDot: norm(get("tenDot")),
+        maSanPham,
+        maThamChieu: norm(get("maThamChieu")),
+        tenSanPham,
+        hanSuDung: norm(hanRaw),
+        ngaySDConLai: dLeftLive,
+        ngaySDConLaiStored: dLeftStored,
+        loaiSale: (function(){
+          let v = norm(get("loaiSale"));
+          if(v==="" || v==="0") return "—";
+          // Quy ước hiển thị nội bộ: "Mua 1 tặng 1" tính tương đương "Giảm 70%".
+          if(normKey(v)==="mua 1 tặng 1") return "Giảm 70%";
+          return v;
+        })(),
+        maPhieuXuat: norm(get("maPhieuXuat")),
+        slDaBan: norm(get("slDaBan")),
+        giaBan: get("giaBan"),
+        giaCanHSD: get("giaCanHSD"),
+        tonTong: norm(get("tonTong")),
+        tonHot: norm(get("tonHot")),
+        tinhTrang: norm(get("tinhTrang")),
+        soLuong: (function(){ const v = get("soLuong"); return (v==="" || isNaN(Number(v))) ? null : Number(v); })()
+      });
+    }
+    return out;
+  }
+
+  function buildTkkkMap(rows){
+    const map = new Map();
+    rows.forEach(r=>{
+      if(!r.maSanPham) return;
+      const cur = map.get(r.maSanPham) || 0;
+      map.set(r.maSanPham, cur + (r.soLuong || 0));
+    });
+    return map;
+  }
+
+  function extractTkkkFromWorkbook(wb){
+    let best = [];
+    Object.keys(wb.Sheets).forEach(name=>{
+      const rows = readSheetObjects(wb.Sheets[name]);
+      if(rows.length > best.length) best = rows;
+    });
+    return buildTkkkMap(best);
+  }
+
+  // Gộp theo (Mã sản phẩm + Hạn sử dụng + Mã phiếu xuất) — vì mỗi Mã định danh
+  // luôn là 1 đơn vị, nên đếm số dòng trùng key = số lượng thật của lô đó.
+  // Cùng mã hàng + cùng HSD mà đều chưa có Mã phiếu xuất sẽ tự gộp chung (key rỗng giống nhau).
+  function aggregateForTongHop(rows){
+    const map = new Map();
+    rows.forEach(r=>{
+      const key = (r.maSanPham||r.tenSanPham) + "||" + r.hanSuDung + "||" + (r.maPhieuXuat||"");
+      if(!map.has(key)){
+        map.set(key, Object.assign({}, r, { soLuongGop: 1, maDinhDanhs: [r.maDinhDanh] }));
+      } else {
+        const ex = map.get(key);
+        ex.soLuongGop += 1;
+        ex.maDinhDanhs.push(r.maDinhDanh);
+      }
+    });
+    return Array.from(map.values());
+  }
+
+  // Tách % giảm từ chuỗi Loại Sale (vd "Giảm 50%" -> 50)
+  function extractPercent(loaiSale){
+    const m = norm(loaiSale).match(/(\d+(?:[.,]\d+)?)\s*%/);
+    return m ? parseFloat(m[1].replace(",",".")) : null;
+  }
+
+  // Giá cận HSD: dùng số có sẵn trong file nếu hợp lệ (>0); nếu không (thường gặp ở
+  // các dòng "Mua 1 tặng 1" -> "Giảm 70%" vì file gốc không có sẵn giá cho kiểu này)
+  // thì tự tính từ Giá bán theo % của Loại Sale.
+  function discountedPriceFor(r){
+    const existing = Number(r.giaCanHSD);
+    if(!isNaN(existing) && existing>0) return { value: existing, computed:false };
+    const pct = extractPercent(r.loaiSale);
+    const giaBan = Number(r.giaBan);
+    if(pct!==null && !isNaN(giaBan) && giaBan>0){
+      return { value: Math.round(giaBan * (1 - pct/100)), computed:true };
+    }
+    return null;
+  }
+
+  // ---------- read one workbook into {chiTiet, tongHop, innerOld} ----------
+  function extractFromWorkbook(wb){
+    const sheetByName = name => {
+      const key = Object.keys(wb.Sheets).find(n => normKey(n) === normKey(name));
+      return key ? wb.Sheets[key] : null;
+    };
+    let chiTiet = readSheetObjects(sheetByName("CHECK CHI TIẾT"));
+    const moiSheet = readSheetObjects(sheetByName("MỚI"));
+    if(chiTiet.length===0 && moiSheet.length) chiTiet = moiSheet;
+
+    // sheet "CŨ" bên trong chính file này (nếu có) — dùng làm phương án dự phòng
+    // khi người dùng chưa tải riêng file CŨ.
+    const innerOld = readSheetObjects(sheetByName("CŨ"));
+
+    // Không khớp tên sheet nào cả (trường hợp phổ biến nhất trong thực tế — file
+    // xuất ra chỉ có 1 sheet, đặt tên tuỳ ý theo tên file) -> quét toàn bộ sheet,
+    // nhận diện theo cấu trúc cột (đã làm trong readSheetObjects/findHeaderRow),
+    // lấy sheet có nhiều dòng dữ liệu hợp lệ nhất.
+    if(chiTiet.length===0){
+      let best = [];
+      Object.keys(wb.Sheets).forEach(name=>{
+        const rows = readSheetObjects(wb.Sheets[name]);
+        if(rows.length > best.length) best = rows;
+      });
+      chiTiet = best;
+    }
+
+    const tongHop = aggregateForTongHop(chiTiet);
+
+    return { chiTiet, tongHop, innerOld, totalRows: chiTiet.length + tongHop.length };
+  }
+
+  // ---------- state ----------
+  const state = { cuData:null, moiData:null, tkkkMap:new Map(), diff:null, chitietShown:60, tonghopShown:60 };
+
+
+  // ---------- lưu / khôi phục tự động (localStorage) ----------
+  const LS_PREFIX = "checkdate_";
+  function todayStr(){
+    const d = new Date();
+    const p = n => String(n).padStart(2,"0");
+    return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+  }
+  function fmtVNDateStr(s){
+    const parts = (s||"").split("-");
+    return parts.length===3 ? parts[2]+"/"+parts[1]+"/"+parts[0] : s;
+  }
+  function saveLS(key, obj){
+    try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(obj)); }
+    catch(e){ console.warn("Không lưu được vào localStorage", e); }
+  }
+  function loadLS(key){
+    try{
+      const raw = localStorage.getItem(LS_PREFIX+key);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+  function removeLS(key){ try{ localStorage.removeItem(LS_PREFIX+key); }catch(e){} }
+
+  function saveMoiOrCu(which, data){
+    saveLS(which, {
+      date: todayStr(),
+      fileName: data.fileName,
+      payload: { chiTiet: data.chiTiet, tongHop: data.tongHop, innerOld: data.innerOld }
+    });
+  }
+
+  // ---------- file handling ----------
+  function wireFileInput(pickBtnId, inputId, statusId, onLoaded){
+    const input = $("#"+inputId);
+    $("#"+pickBtnId).addEventListener("click", ()=>input.click());
+    input.addEventListener("change", e=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      const statusEl = $("#"+statusId);
+      statusEl.className = "file-status";
+      statusEl.textContent = "Đang đọc " + file.name + "…";
+
+      const reader = new FileReader();
+      reader.onload = evt=>{
+        try{
+          const wb = XLSX.read(evt.target.result, {type:"array", cellDates:false});
+          const data = extractFromWorkbook(wb);
+          if(data.totalRows===0){
+            statusEl.className = "file-status err";
+            statusEl.textContent = "Không nhận diện được dữ liệu trong " + file.name;
+            return;
+          }
+          data.fileName = file.name;
+          statusEl.className = "file-status ok";
+          statusEl.textContent = "✓ " + file.name + " — " + data.chiTiet.length + " dòng";
+          onLoaded(data);
+        }catch(err){
+          console.error(err);
+          statusEl.className = "file-status err";
+          statusEl.textContent = "Lỗi đọc file: " + err.message;
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  wireFileInput("pickBtnCu","fileInputCu","fileStatusCu", data=>{
+    state.cuData = data;
+    saveMoiOrCu("cu", data);
+    afterFileChange();
+  });
+
+  wireFileInput("pickBtnMoi","fileInputMoi","fileStatusMoi", data=>{
+    state.moiData = data;
+    saveMoiOrCu("moi", data);
+    afterFileChange();
+  });
+
+  // File TKKK (tồn kho) — cấu trúc khác (không có ngày HSD), chỉ cần map Mã sản phẩm -> tồn.
+  (function wireTkkkInput(){
+    const input = $("#fileInputTkkk");
+    $("#pickBtnTkkk").addEventListener("click", ()=>input.click());
+    input.addEventListener("change", e=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      const statusEl = $("#fileStatusTkkk");
+      statusEl.className = "file-status";
+      statusEl.textContent = "Đang đọc " + file.name + "…";
+
+      const reader = new FileReader();
+      reader.onload = evt=>{
+        try{
+          const wb = XLSX.read(evt.target.result, {type:"array", cellDates:false});
+          const map = extractTkkkFromWorkbook(wb);
+          if(map.size===0){
+            statusEl.className = "file-status err";
+            statusEl.textContent = "Không nhận diện được dữ liệu tồn kho trong " + file.name;
+            return;
+          }
+          state.tkkkMap = map;
+          statusEl.className = "file-status ok";
+          statusEl.textContent = "✓ " + file.name + " — " + map.size + " mã hàng";
+          saveLS("tkkk", { date: todayStr(), fileName: file.name, payload: Array.from(map.entries()) });
+          if(state.moiData){ renderChiTiet(); renderTongHop(); }
+        }catch(err){
+          console.error(err);
+          statusEl.className = "file-status err";
+          statusEl.textContent = "Lỗi đọc file: " + err.message;
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  })();
+
+  $("#resetBtn").addEventListener("click", e=>{
+    e.preventDefault();
+    if(!confirm("Xoá toàn bộ dữ liệu đã lưu trên máy này?")) return;
+    ["moi","cu","tkkk"].forEach(removeLS);
+    location.reload();
+  });
+
+  function afterFileChange(){
+    if(!state.moiData && !state.cuData) return;
+
+    if(state.moiData){
+      $("#emptyState").classList.add("hidden");
+      $$(".tab-btn").forEach(b=>b.disabled=false);
+      state.chitietShown = 60; state.tonghopShown = 60;
+      setupChiTiet();
+      setupTongHop();
+      const activeBtn = $$(".tab-btn.active")[0];
+      activateTab(activeBtn && !activeBtn.disabled ? activeBtn.dataset.tab : "tonghop");
+    } else if(state.cuData){
+      // chỉ mới có file Cũ — chưa có gì để hiện, chờ file Mới.
+      computeDiff();
+    }
+  }
+
+  // ---------- khôi phục khi mở lại trang ----------
+  function restoreFromStorage(){
+    const savedTkkk = loadLS("tkkk");
+    if(savedTkkk && savedTkkk.payload){
+      state.tkkkMap = new Map(savedTkkk.payload);
+      $("#fileStatusTkkk").className = "file-status ok";
+      $("#fileStatusTkkk").textContent = "✓ " + savedTkkk.fileName + " (đã lưu ngày " + fmtVNDateStr(savedTkkk.date) + ")";
+    }
+
+    const savedMoi = loadLS("moi");
+    const savedCu = loadLS("cu");
+    const today = todayStr();
+
+    if(savedMoi){
+      if(savedMoi.date !== today){
+        // Qua ngày mới: dữ liệu Mới hôm qua tự chuyển thành Cũ, cần tải lại Mới.
+        const promoted = { date: savedMoi.date, fileName: savedMoi.fileName, payload: savedMoi.payload };
+        saveLS("cu", promoted);
+        removeLS("moi");
+        state.cuData = Object.assign({}, promoted.payload, { fileName: promoted.fileName });
+        $("#fileStatusCu").className = "file-status ok";
+        $("#fileStatusCu").textContent = "✓ " + promoted.fileName + " (tự chuyển từ Mới, ngày " + fmtVNDateStr(promoted.date) + ")";
+        $("#fileStatusMoi").className = "file-status";
+        $("#fileStatusMoi").textContent = "Đã qua ngày mới — tải lại file MỚI hôm nay";
+      } else {
+        state.moiData = Object.assign({}, savedMoi.payload, { fileName: savedMoi.fileName });
+        $("#fileStatusMoi").className = "file-status ok";
+        $("#fileStatusMoi").textContent = "✓ " + savedMoi.fileName + " (đã lưu)";
+        if(savedCu){
+          state.cuData = Object.assign({}, savedCu.payload, { fileName: savedCu.fileName });
+          $("#fileStatusCu").className = "file-status ok";
+          $("#fileStatusCu").textContent = "✓ " + savedCu.fileName + " (đã lưu ngày " + fmtVNDateStr(savedCu.date) + ")";
+        }
+      }
+    } else if(savedCu){
+      state.cuData = Object.assign({}, savedCu.payload, { fileName: savedCu.fileName });
+      $("#fileStatusCu").className = "file-status ok";
+      $("#fileStatusCu").textContent = "✓ " + savedCu.fileName + " (đã lưu ngày " + fmtVNDateStr(savedCu.date) + ")";
+    }
+
+    if(state.moiData || state.cuData) afterFileChange();
+  }
+
+  // ---------- tabs ----------
+  function activateTab(name){
+    $$(".tab-btn").forEach(b=>b.classList.toggle("active", b.dataset.tab===name));
+    ["chitiet","tonghop"].forEach(t=>{
+      $("#tab-"+t).classList.toggle("hidden", t!==name);
+    });
+  }
+  $$(".tab-btn").forEach(b=>b.addEventListener("click", ()=>{ if(!b.disabled) activateTab(b.dataset.tab); }));
+
+
+  // ---------- SO SÁNH: tính diff (dùng chung cho tab So sánh và bộ lọc ở Tổng hợp) ----------
+  function computeDiff(){
+    const moiList = state.moiData ? state.moiData.chiTiet : [];
+    const cuList = state.cuData ? state.cuData.chiTiet
+                 : (state.moiData && state.moiData.innerOld.length ? state.moiData.innerOld : []);
+    const usingInnerOld = !state.cuData && state.moiData && state.moiData.innerOld.length > 0;
+
+    if(!state.moiData || cuList.length===0){
+      state.diff = null;
+      return null;
+    }
+
+    const cuMap = new Map(cuList.map(r=>[r.maDinhDanh, r]));
+    const moiMap = new Map(moiList.map(r=>[r.maDinhDanh, r]));
+    const moiIds = new Set(moiMap.keys());
+    const cuIds = new Set(cuMap.keys());
+
+    const newItems = moiList.filter(r=>r.maDinhDanh && !cuIds.has(r.maDinhDanh));
+    const doneItems = cuList.filter(r=>r.maDinhDanh && !moiIds.has(r.maDinhDanh));
+    const meaningfulChanges = [];
+    const dayOnlyChanges = [];
+
+    const actionFields = [
+      ["loaiSale","Loại Sale"],
+      ["giaCanHSD","Giá cận HSD"],
+      ["tinhTrang","Tình trạng"]
+    ];
+
+    moiMap.forEach((row, id)=>{
+      if(!id || !cuMap.has(id)) return;
+      const old = cuMap.get(id);
+      const diffs = [];
+      actionFields.forEach(([f,label])=>{
+        if(norm(old[f]) !== norm(row[f])) diffs.push({label, from:old[f], to:row[f]});
+      });
+      const dayChanged = norm(old.ngaySDConLaiStored) !== norm(row.ngaySDConLaiStored);
+
+      if(diffs.length){
+        if(dayChanged) diffs.push({label:"Ngày SD còn lại", from:old.ngaySDConLaiStored, to:row.ngaySDConLaiStored});
+        meaningfulChanges.push({row, diffs});
+      } else if(dayChanged){
+        dayOnlyChanges.push({row, from:old.ngaySDConLaiStored, to:row.ngaySDConLaiStored});
+      }
+    });
+
+    state.diff = { newItems, doneItems, meaningfulChanges, dayOnlyChanges, usingInnerOld };
+    return state.diff;
+  }
+
+  function getChangedIdSet(){
+    const d = state.diff;
+    if(!d) return null;
+    return new Set(d.meaningfulChanges.map(x=>x.row.maDinhDanh));
+  }
+
+  function emptyGroupMsg(){
+    return '<div class="result-count">Không có mục nào.</div>';
+  }
+
+  // ---------- xuất Excel từ dữ liệu đã lọc ----------
+  function exportRowsToExcel(rows, columns, filenamePrefix){
+    if(!rows || rows.length===0){ alert("Không có dữ liệu để xuất (đang lọc ra 0 kết quả)."); return; }
+    const header = columns.map(c=>c.header);
+    const data = rows.map(r=>columns.map(c=>c.get(r)));
+    const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Data");
+    XLSX.writeFile(wb, filenamePrefix + "_" + todayStr() + ".xlsx");
+  }
+
+  const CHITIET_EXPORT_COLS = [
+    { header:"Mã định danh", get:r=>r.maDinhDanh },
+    { header:"Mã sản phẩm", get:r=>r.maSanPham },
+    { header:"Mã tham chiếu", get:r=>r.maThamChieu },
+    { header:"Tên sản phẩm", get:r=>r.tenSanPham },
+    { header:"Hạn sử dụng", get:r=>r.hanSuDung },
+    { header:"Ngày SD còn lại", get:r=>r.ngaySDConLai },
+    { header:"Loại Sale", get:r=>r.loaiSale },
+    { header:"Giá bán", get:r=>r.giaBan },
+    { header:"Giá cận HSD", get:r=>{ const dp=discountedPriceFor(r); return dp?dp.value:""; } },
+    { header:"Tồn kho tổng", get:r=>tonDisplayFor(r) },
+    { header:"Mã phiếu xuất", get:r=>r.maPhieuXuat },
+    { header:"Tình trạng", get:r=>r.tinhTrang }
+  ];
+
+  const TONGHOP_EXPORT_COLS = [
+    { header:"Mã sản phẩm", get:r=>r.maSanPham },
+    { header:"Tên sản phẩm", get:r=>r.tenSanPham },
+    { header:"Hạn sử dụng", get:r=>r.hanSuDung },
+    { header:"Ngày SD còn lại", get:r=>r.ngaySDConLai },
+    { header:"Loại Sale", get:r=>r.loaiSale },
+    { header:"Giá bán", get:r=>r.giaBan },
+    { header:"Giá cận HSD", get:r=>{ const dp=discountedPriceFor(r); return dp?dp.value:""; } },
+    { header:"Số lượng lô", get:r=>r.soLuongGop },
+    { header:"Mã phiếu xuất", get:r=>r.maPhieuXuat || "Chưa xuất" },
+    { header:"Tồn kho tổng", get:r=>tonDisplayFor(r) },
+    { header:"Tình trạng", get:r=>r.tinhTrang }
+  ];
+
+  $("#chitietExport").addEventListener("click", ()=>{
+    exportRowsToExcel(filteredChiTiet(), CHITIET_EXPORT_COLS, "check-date-chitiet");
+  });
+  $("#tonghopExport").addEventListener("click", ()=>{
+    exportRowsToExcel(filteredTongHop(), TONGHOP_EXPORT_COLS, "check-date-tonghop");
+  });
+
+  // ---------- CHI TIẾT tab ----------
+  function setupChiTiet(){
+    const select = $("#chitietFilter");
+    select.innerHTML = '<option value="">Tất cả tình trạng</option>';
+    const statuses = Array.from(new Set(state.moiData.chiTiet.map(r=>r.tinhTrang || "Chưa xác định")));
+    statuses.sort().forEach(s=>{
+      const opt = document.createElement("option");
+      opt.value = s; opt.textContent = s;
+      select.appendChild(opt);
+    });
+    $("#chitietSearch").oninput = ()=>{ state.chitietShown=60; renderChiTiet(); };
+    select.onchange = ()=>{ state.chitietShown=60; renderChiTiet(); };
+    $("#chitietMore").onclick = ()=>{ state.chitietShown += 80; renderChiTiet(); };
+    const cbHetHan = $("#chitietHetHan");
+    cbHetHan.checked = false;
+    cbHetHan.onchange = ()=>{ state.chitietShown=60; renderChiTiet(); };
+    const cbTangDon = $("#chitietTangDon");
+    cbTangDon.checked = false;
+    cbTangDon.onchange = ()=>{ state.chitietShown=60; renderChiTiet(); };
+    renderChiTiet();
+  }
+
+  function filteredChiTiet(){
+    const q = normKey($("#chitietSearch").value);
+    const statusFilter = $("#chitietFilter").value;
+    const hetHanOnly = $("#chitietHetHan").checked;
+    const tangDonOnly = $("#chitietTangDon").checked;
+    return state.moiData.chiTiet.filter(r=>{
+      if(statusFilter && (r.tinhTrang || "Chưa xác định") !== statusFilter) return false;
+      if(hetHanOnly && !isHetHan(r)) return false;
+      if(tangDonOnly && !isTangTheoDonHang(r)) return false;
+      if(!q) return true;
+      return normKey(r.tenSanPham).includes(q) || normKey(r.maDinhDanh).includes(q)
+          || normKey(r.maSanPham).includes(q) || normKey(r.maThamChieu).includes(q);
+    }).sort((a,b)=>{
+      const da = a.ngaySDConLai===null ? 99999 : a.ngaySDConLai;
+      const db = b.ngaySDConLai===null ? 99999 : b.ngaySDConLai;
+      return da-db;
+    });
+  }
+
+  function renderChiTiet(){
+    const all = filteredChiTiet();
+    const shown = all.slice(0, state.chitietShown);
+    $("#chitietCount").textContent = shown.length + " / " + all.length + " sản phẩm";
+    $("#chitietList").innerHTML = shown.map(r=>cardHtmlDetailed(r)).join("") || emptyGroupMsg();
+    $("#chitietMore").classList.toggle("hidden", shown.length>=all.length);
+  }
+
+  function tonDisplayFor(r){
+    if(r.tonTong!=="") return r.tonTong;
+    if(state.tkkkMap.has(r.maSanPham)) return String(state.tkkkMap.get(r.maSanPham));
+    return "";
+  }
+
+  function priceLineHtml(r){
+    const giaBanOk = r.giaBan!=="" && r.giaBan!==undefined && !isNaN(Number(r.giaBan));
+    const dp = discountedPriceFor(r);
+    let html = "";
+    if(giaBanOk) html += '<span>Giá bán: '+fmtMoney(r.giaBan)+'</span>';
+    if(dp){
+      html += dp.computed
+        ? '<span class="price-computed">Giá cận HSD (tự tính): '+fmtMoney(dp.value)+'</span>'
+        : '<span>Giá cận HSD: '+fmtMoney(dp.value)+'</span>';
+    }
+    return html;
+  }
+
+  function cardHtmlDetailed(r){
+    const t = tierOf(r.ngaySDConLai);
+    const days = r.ngaySDConLai===null ? "—" : (r.ngaySDConLai<=0 ? "Hết hạn" : r.ngaySDConLai+" ngày");
+    const ton = tonDisplayFor(r);
+    return '<div class="card '+t.cls+'">'
+      + '<div class="name">'+escapeHtml(r.tenSanPham || "(không tên)")+'</div>'
+      + '<div class="meta">'
+        + '<span>Mã ĐD: '+escapeHtml(r.maDinhDanh)+'</span>'
+        + '<span>HSD: '+escapeHtml(r.hanSuDung)+'</span>'
+        + (ton!=="" ? '<span>Tồn kho tổng: '+escapeHtml(ton)+'</span>' : "")
+      + '</div>'
+      + '<div class="meta">'+priceLineHtml(r)+'</div>'
+      + '<div class="badges">'
+        + '<span class="badge '+t.cls+'">'+days+'</span>'
+        + (r.loaiSale && r.loaiSale!=="—" ? '<span class="badge">'+escapeHtml(r.loaiSale)+'</span>' : "")
+        + (r.tinhTrang ? '<span class="badge">'+escapeHtml(r.tinhTrang)+'</span>' : "")
+      + '</div>'
+    + '</div>';
+  }
+
+  // ---------- TỔNG HỢP tab ----------
+  function setupTongHop(){
+    $("#tonghopSearch").oninput = ()=>{ state.tonghopShown=60; renderTongHop(); };
+    $("#tonghopMore").onclick = ()=>{ state.tonghopShown += 80; renderTongHop(); };
+    const cb = $("#tonghopChangedOnly");
+    cb.checked = false;
+    cb.onchange = ()=>{ state.tonghopShown=60; renderTongHop(); };
+    const cbZero = $("#tonghopHideZero");
+    cbZero.checked = false;
+    cbZero.onchange = ()=>{ state.tonghopShown=60; renderTongHop(); };
+    const cbHetHan = $("#tonghopHetHan");
+    cbHetHan.checked = false;
+    cbHetHan.onchange = ()=>{ state.tonghopShown=60; renderTongHop(); };
+    const cbTangDon = $("#tonghopTangDon");
+    cbTangDon.checked = false;
+    cbTangDon.onchange = ()=>{ state.tonghopShown=60; renderTongHop(); };
+    renderTongHop();
+  }
+
+  function isHetHan(r){ return r.ngaySDConLai!==null && r.ngaySDConLai<=0; }
+  function isTangTheoDonHang(r){
+    return normKey(r.loaiSale).includes("tặng theo đơn hàng") || normKey(r.tinhTrang).includes("tặng theo đơn hàng");
+  }
+
+  function filteredTongHop(){
+    const q = normKey($("#tonghopSearch").value);
+    const changedOnly = $("#tonghopChangedOnly").checked;
+    const hideZero = $("#tonghopHideZero").checked;
+    const hetHanOnly = $("#tonghopHetHan").checked;
+    const tangDonOnly = $("#tonghopTangDon").checked;
+    const changedIds = changedOnly ? getChangedIdSet() : null;
+
+    return state.moiData.tongHop.filter(r=>{
+      if(changedIds && !r.maDinhDanhs.some(id=>changedIds.has(id))) return false;
+      if(hideZero){
+        const ton = tonDisplayFor(r);
+        if(ton!=="" && Number(ton)===0) return false;
+      }
+      if(hetHanOnly && !isHetHan(r)) return false;
+      if(tangDonOnly && !isTangTheoDonHang(r)) return false;
+      if(!q) return true;
+      return normKey(r.tenSanPham).includes(q) || normKey(r.maSanPham).includes(q) || normKey(r.maThamChieu).includes(q);
+    }).sort((a,b)=>{
+      const da = a.ngaySDConLai===null ? 99999 : a.ngaySDConLai;
+      const db = b.ngaySDConLai===null ? 99999 : b.ngaySDConLai;
+      return da-db;
+    });
+  }
+
+  function renderTongHop(){
+    computeDiff(); // đảm bảo state.diff mới nhất cho bộ lọc "đổi tình trạng"
+    const changedWrap = $("#tonghopChangedWrap");
+    const cb = $("#tonghopChangedOnly");
+    if(!state.diff){
+      cb.disabled = true; cb.checked = false;
+      changedWrap.classList.add("disabled");
+    } else {
+      cb.disabled = false;
+      changedWrap.classList.remove("disabled");
+    }
+
+    const all = filteredTongHop();
+    const shown = all.slice(0, state.tonghopShown);
+    $("#tonghopCount").textContent = shown.length + " / " + all.length + " lô hàng (theo mã hàng + HSD)";
+    $("#tonghopList").innerHTML = shown.map(r=>tongHopCardHtml(r)).join("") || emptyGroupMsg();
+    $("#tonghopMore").classList.toggle("hidden", shown.length>=all.length);
+  }
+
+  function tongHopCardHtml(r){
+    const t = tierOf(r.ngaySDConLai);
+    const days = r.ngaySDConLai===null ? "—" : (r.ngaySDConLai<=0 ? "Hết hạn" : r.ngaySDConLai+" ngày");
+    const ton = tonDisplayFor(r);
+    return '<div class="card '+t.cls+'">'
+      + '<div class="name">'+escapeHtml(r.tenSanPham || "(không tên)")+'</div>'
+      + '<div class="meta">'
+        + '<span>Mã hàng: '+escapeHtml(r.maSanPham)+'</span>'
+        + '<span>HSD: '+escapeHtml(r.hanSuDung)+'</span>'
+        + (ton!=="" ? '<span>Tồn kho tổng: '+escapeHtml(ton)+'</span>' : "")
+      + '</div>'
+      + '<div class="meta">'+priceLineHtml(r)+'</div>'
+      + '<div class="meta"><span>Số lượng lô này: '+r.soLuongGop+'</span>'
+        + (r.maPhieuXuat ? '<span>Phiếu xuất: '+escapeHtml(r.maPhieuXuat)+'</span>' : '<span>Chưa xuất</span>')
+      + '</div>'
+      + '<div class="badges">'
+        + '<span class="badge '+t.cls+'">'+days+'</span>'
+        + (r.loaiSale && r.loaiSale!=="—" ? '<span class="badge">'+escapeHtml(r.loaiSale)+'</span>' : "")
+        + (r.tinhTrang ? '<span class="badge">'+escapeHtml(r.tinhTrang)+'</span>' : "")
+      + '</div>'
+    + '</div>';
+  }
+
+  restoreFromStorage();
+
+})();
+</script>
+</body>
+</html>
