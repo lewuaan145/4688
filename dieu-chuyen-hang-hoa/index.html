@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<title>Điều Chuyển Hàng Hóa</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#152238; --ink-2:#22375c; --panel:#ffffff; --bg:#eef1f6; --line:#dde3ee;
+    --muted:#67748f; --coral:#ff6f8e; --coral-dark:#e2436a; --mint:#1fb6a6; --amber:#f5a623;
+    --radius:14px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;}
+  body{padding-bottom:24px;}
+  h1,h2,h3{margin:0;}
+  button{font-family:inherit;}
+
+  header.app-header{
+    position:sticky;top:0;z-index:30;background:var(--ink);color:#fff;
+    padding:calc(14px + var(--safe-top)) 16px 12px;box-shadow:0 2px 10px rgba(21,34,56,.18);
+  }
+  .brand{display:flex;align-items:baseline;gap:8px;margin-bottom:10px;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--coral);flex:none;}
+  .brand h1{font-size:15px;font-weight:800;letter-spacing:.2px;}
+  .store-row{display:flex;gap:8px;}
+  select#storeSelect{
+    flex:1;min-width:0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
+    color:#fff;border-radius:10px;padding:11px 10px;font-size:14.5px;font-weight:600;-webkit-appearance:none;appearance:none;
+  }
+  select#storeSelect option{color:#111;}
+  .store-count{font-size:10.5px;color:#9fb0cc;margin-top:6px;font-weight:600;}
+
+  main{padding:14px 16px 24px;max-width:640px;margin:0 auto;}
+
+  .section-title{font-size:12px;font-weight:800;color:var(--ink-2);margin:18px 0 8px;display:flex;align-items:center;gap:6px;}
+  .section-title:first-child{margin-top:0;}
+
+  .uploads-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .upload-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:10px 11px;display:flex;flex-direction:column;gap:5px;
+  }
+  .upload-card .t{font-size:11.5px;font-weight:800;color:var(--ink);}
+  .upload-card .m{font-size:10px;color:var(--muted);line-height:1.4;word-break:break-word;}
+  .upload-card label.btn{
+    margin-top:2px;text-align:center;font-size:10.5px;font-weight:700;color:#fff;
+    background:var(--ink-2);padding:8px 8px;border-radius:8px;cursor:pointer;
+  }
+  .upload-card input[type=file]{display:none;}
+  .upload-card.done{border-color:#bdeeda;background:#f6fefb;}
+  .upload-card.done label.btn{background:var(--mint);}
+
+  .arrivals-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .hint-text{font-size:11px;color:var(--muted);line-height:1.6;margin:6px 2px 10px;}
+
+  .paste-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 13px;}
+  .paste-box .h{font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6;}
+  .paste-box textarea{
+    width:100%;min-height:78px;border:1px solid var(--line);border-radius:8px;padding:9px;
+    font-size:11.5px;font-family:ui-monospace,Menlo,monospace;resize:vertical;
+  }
+  .paste-box .row-btns{display:flex;gap:10px;margin-top:9px;align-items:center;flex-wrap:wrap;}
+  .paste-box button{background:var(--mint);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-weight:800;font-size:12px;}
+  .paste-box .cnt{font-size:11px;color:var(--muted);font-weight:700;}
+  .preview-row{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid #f2f4f8;font-size:11px;}
+  .preview-row .l{color:var(--ink);min-width:0;}
+  .preview-row .l .code{color:var(--muted);font-size:10px;}
+  .preview-row .r{flex:none;text-align:right;font-weight:800;}
+  .preview-row .r .sl{color:var(--ink);}
+  .preview-row .r .tag{display:block;font-size:9px;font-weight:800;margin-top:2px;}
+  .preview-row .r .tag.match{color:#0f8f6e;}
+  .preview-row .r .tag.new{color:#e2436a;}
+  .preview-more{font-size:10.5px;color:var(--muted);text-align:center;padding-top:8px;}
+
+  .divider{height:1px;background:var(--line);margin:20px 0;}
+
+  .summary-strip{
+    display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:12px;
+  }
+  .summary-strip .s{
+    flex:none;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:10px 14px;text-align:center;min-width:78px;
+  }
+  .summary-strip .s .v{font-size:17px;font-weight:900;color:var(--ink);}
+  .summary-strip .s .l{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+  .summary-strip .s.urgent .v{color:#c94a4a;}
+  .summary-strip .s.new .v{color:#0f8f6e;}
+
+  .chip-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  .chip{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:8px 13px;font-size:12px;font-weight:700;color:var(--muted);}
+  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .chip.warn.on{background:#c94a4a;border-color:#c94a4a;}
+
+  .filter-row{margin-bottom:10px;}
+  .filter-row select{
+    width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+    font-size:13.5px;font-weight:700;background:var(--panel);color:var(--ink-2);-webkit-appearance:none;appearance:none;
+  }
+  .searchbar{margin-bottom:14px;}
+  .searchbar input{
+    width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:14px;
+    background:var(--panel);color:var(--ink);
+  }
+
+  .export-btn{
+    width:100%;display:flex;align-items:center;justify-content:center;gap:7px;
+    background:var(--mint);color:#fff;border:none;border-radius:12px;padding:13px 10px;font-weight:800;font-size:13.5px;margin-bottom:16px;
+  }
+
+  .empty{text-align:center;color:var(--muted);padding:36px 16px;font-size:13.5px;line-height:1.7;}
+  .empty b{color:var(--ink);}
+  .note-box{
+    background:#fff6e8;border:1px solid #ffe2b0;color:#a3670a;border-radius:12px;
+    padding:10px 12px;font-size:11.5px;line-height:1.6;margin-bottom:14px;
+  }
+
+  /* ---- category accordion ---- */
+  .cat-section{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden;}
+  .cat-header{padding:13px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;gap:8px;}
+  .cat-header .name{font-weight:800;font-size:13px;color:var(--ink);flex:1;min-width:0;}
+  .cat-header .counts{display:flex;gap:5px;align-items:center;flex:none;}
+  .cat-badge{font-size:10px;font-weight:800;padding:3px 7px;border-radius:99px;white-space:nowrap;}
+  .cat-badge.total{background:#eef1f6;color:var(--muted);}
+  .cat-badge.urgent{background:#fdeef0;color:#c94a4a;}
+  .cat-badge.new{background:#eafaf3;color:#0f8f6e;}
+  .cat-header .chev{font-size:12px;color:var(--muted);transition:transform .15s;flex:none;}
+  .cat-section.open .cat-header .chev{transform:rotate(180deg);}
+  .cat-body{display:none;padding:0 12px 12px;}
+  .cat-section.open .cat-body{display:block;}
+
+  .prod-row{border-top:1px solid #f2f4f8;padding:11px 2px;}
+  .prod-row:first-child{border-top:none;}
+  .prod-row.urgent{background:#fff8f9;margin:0 -2px;padding:11px 10px;border-radius:9px;border-top:none;}
+  .prod-badges{display:flex;gap:5px;margin-bottom:4px;flex-wrap:wrap;}
+  .p-tag{font-size:9.5px;font-weight:800;padding:2.5px 7px;border-radius:99px;}
+  .p-tag.new{background:#0f8f6e;color:#fff;}
+  .p-tag.urgent{background:#c94a4a;color:#fff;}
+  .p-name{font-size:13px;font-weight:700;color:var(--ink);line-height:1.35;}
+  .p-code{font-size:10.5px;color:var(--muted);margin-top:2px;}
+  .prod-stats{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+  .pill{background:#f4f5f8;border-radius:8px;padding:4px 8px;font-size:10.5px;color:var(--muted);font-weight:600;white-space:nowrap;}
+  .pill b{color:var(--ink);font-weight:800;margin-left:3px;font-size:11.5px;}
+  .pill.now{background:#eef1f6;}
+  .pill.now.low{background:#fdeef0;}
+  .pill.now.low b{color:#c94a4a;}
+  .pill.inc{background:#eafaf3;}
+  .pill.inc b{color:#0f8f6e;}
+  .pill.total{background:var(--ink);color:#dbe2f0;}
+  .pill.total b{color:#fff;}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand"><span class="dot"></span><h1>Phân tích bán ra &amp; Điều chuyển tháng</h1></div>
+  <div class="store-row">
+    <select id="storeSelect"><option value="">— Chọn cửa hàng —</option></select>
+  </div>
+  <div class="store-count" id="storeCount"></div>
+</header>
+
+<main>
+  <div class="section-title">📥 Tồn kho đầu &amp; cuối tháng <span style="flex:1;"></span><button id="clearCacheBtn" style="background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:10.5px;font-weight:700;color:var(--muted);cursor:pointer;">🗑 Xoá dữ liệu đã lưu</button></div>
+  <div class="uploads-2">
+    <div class="upload-card" id="stockStartCard">
+      <div class="t">Tồn kho đầu tháng</div>
+      <div class="m" id="stockStartMeta">Chưa tải file</div>
+      <label class="btn">Chọn file<input type="file" id="stockStartFile" accept=".xlsx,.xls"></label>
+    </div>
+    <div class="upload-card" id="stockEndCard">
+      <div class="t">Tồn kho cuối tháng</div>
+      <div class="m" id="stockEndMeta">Chưa tải file</div>
+      <label class="btn">Chọn file<input type="file" id="stockEndFile" accept=".xlsx,.xls"></label>
+    </div>
+  </div>
+
+  <div class="section-title">🚚 Hàng về trong tháng (giữa đầu &amp; cuối tháng)</div>
+  <div class="arrivals-grid">
+    <div class="upload-card" id="arrival1Card">
+      <div class="t">Đợt 1</div>
+      <div class="m" id="arrival1Meta">Chưa tải file</div>
+      <label class="btn">Chọn file<input type="file" id="arrival1File" accept=".xlsx,.xls"></label>
+    </div>
+    <div class="upload-card" id="arrival2Card">
+      <div class="t">Đợt 2</div>
+      <div class="m" id="arrival2Meta">Chưa tải file</div>
+      <label class="btn">Chọn file<input type="file" id="arrival2File" accept=".xlsx,.xls"></label>
+    </div>
+    <div class="upload-card" id="arrival3Card">
+      <div class="t">Đợt 3</div>
+      <div class="m" id="arrival3Meta">Chưa tải file</div>
+      <label class="btn">Chọn file<input type="file" id="arrival3File" accept=".xlsx,.xls"></label>
+    </div>
+    <div class="upload-card" id="arrival4Card">
+      <div class="t">Đợt 4</div>
+      <div class="m" id="arrival4Meta">Chưa tải file</div>
+      <label class="btn">Chọn file<input type="file" id="arrival4File" accept=".xlsx,.xls"></label>
+    </div>
+  </div>
+  <div class="hint-text">Mỗi file là 1 phiếu <b>"Chi tiết phiếu nhập"</b> xuất từ hệ thống (cột: Mã sản phẩm, Mã tham chiếu, Tên sản phẩm, SL đã nhập). Cần đủ đợt hàng về xảy ra trong khoảng từ ngày lấy tồn đầu đến ngày lấy tồn cuối.</div>
+
+  <div class="section-title">🔜 Hàng sắp về (chưa nhập kho)</div>
+  <div class="paste-box">
+    <div class="h">Copy cả dòng tiêu đề (nếu có) và dữ liệu từ Excel rồi dán vào đây — tool tự nhận diện cột theo tên (Mã sản phẩm, Mã tham chiếu, Tên sản phẩm, SL yêu cầu...). Nếu dán không có tiêu đề, mặc định hiểu theo thứ tự: Mã SP [Tab] Mã tham chiếu [Tab] Tên SP [Tab] Số lượng</div>
+    <textarea id="upcomingPaste" placeholder="4173000000116&#9;8936239950002&#9;QT Bobby - Gối lót đầu cho trẻ&#9;1"></textarea>
+    <div class="row-btns">
+      <button id="parseUpcomingBtn">Cập nhật danh sách sắp về</button>
+      <span class="cnt" id="upcomingCount"></span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div id="phanTichResult"></div>
+</main>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ STATE ============ */
+const state = {
+  stockStart: null,  // {rows, storeSet}
+  stockEnd: null,    // {rows, storeSet}
+  arrivalFiles: {a1:null, a2:null, a3:null, a4:null},
+  arrivals: [],
+  upcoming: [],
+  selectedStore: "",
+  filters: { onlyNew:false, onlyUrgent:false },
+  openCats: new Set()
+};
+
+const $ = (sel) => document.querySelector(sel);
+const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; };
+function norm(s){ return (s||"").toString().toLowerCase().normalize("NFC"); }
+
+/* ============ HELPERS: đọc header tiếng Việt không phân biệt dấu ============ */
+function stripDiacritics(s){
+  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D");
+}
+function headerKey(s){ return stripDiacritics(s).toLowerCase().replace(/[^a-z0-9]/g,""); }
+function cellToStr(v){
+  if(v===null || v===undefined || v==="") return "";
+  return typeof v === "number" ? String(v) : String(v).trim();
+}
+// Mã SP nội bộ luôn đủ 13 số. File Excel đôi khi lưu cột này dạng SỐ nên mất số 0 đầu -> vá lại.
+function cellToProductCode(v){
+  const s = cellToStr(v);
+  if(/^\d+$/.test(s) && s.length>0 && s.length<13) return s.padStart(13,"0");
+  return s;
+}
+function readFileAsArrayBuffer(file){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+/* ============ PARSER: file Tồn kho (đầu tháng / cuối tháng) ============ */
+// Dò sheet + hàng header chứa "Cửa hàng" + "Mã sản phẩm", map cột theo TÊN (không phụ thuộc thứ tự).
+function parseInventoryWorkbookGeneric(wb){
+  let best = null;
+  for(const sheetName of wb.SheetNames){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true, defval:""});
+    for(let r=0; r<Math.min(rows.length,10); r++){
+      const keys = rows[r].map(headerKey);
+      const idxStore = keys.findIndex(k=>k==="cuahang");
+      const idxMaSP = keys.findIndex(k=>k==="masanpham");
+      if(idxStore>=0 && idxMaSP>=0){
+        best = { rows, headerRow:r, idx:{
+          store: idxStore, maSP: idxMaSP,
+          maThamChieu: keys.findIndex(k=>k.startsWith("mathamchieu")),
+          tenSP: keys.findIndex(k=>k==="tensanpham"),
+          soLuong: keys.findIndex(k=>k==="soluong"),
+          soLuongTreo: keys.findIndex(k=>k==="soluongtreo"),
+          nganhCap1: keys.findIndex(k=>k==="nganhhangcap1")
+        }};
+        break;
+      }
+    }
+    if(best) break;
+  }
+  if(!best) throw new Error("Không tìm thấy bảng dữ liệu tồn kho (cần cột 'Cửa hàng' và 'Mã sản phẩm') trong file.");
+
+  const { rows, headerRow, idx } = best;
+  const out = []; const storeSet = new Set();
+  const g = (r,i)=> i>=0 ? cellToStr(r[i]) : "";
+  for(let i=headerRow+1;i<rows.length;i++){
+    const r = rows[i];
+    const store = g(r, idx.store);
+    const maSP = idx.maSP>=0 ? cellToProductCode(r[idx.maSP]) : "";
+    if(!store || !maSP) continue;
+    storeSet.add(store);
+    out.push({
+      store, maSP,
+      maThamChieu: g(r, idx.maThamChieu),
+      tenSP: g(r, idx.tenSP),
+      nganhCap1: g(r, idx.nganhCap1),
+      soLuong: idx.soLuong>=0 ? (parseFloat(r[idx.soLuong])||0) : 0,
+      soLuongTreo: idx.soLuongTreo>=0 ? (parseFloat(r[idx.soLuongTreo])||0) : 0
+    });
+  }
+  return { rows: out, storeSet };
+}
+async function parseInventoryFile(file){
+  const buf = await readFileAsArrayBuffer(file);
+  return parseInventoryWorkbookGeneric(XLSX.read(buf, {type:"array"}));
+}
+
+/* ============ PARSER: file "Hàng về" ============ */
+// Hỗ trợ cả 2 định dạng:
+//  - Mới (Chi tiết phiếu nhập): Mã sản phẩm | Mã tham chiếu | Tên sản phẩm | SL đã nhập
+//  - Cũ (Phiếu nhập hàng): Mã sản phẩm | Mã tham chiếu phẩm | Tên sản phẩm | SL yêu cầu | SL đã nhận
+// Ưu tiên SL đã nhập > SL yêu cầu > SL đã nhận (tuỳ cột nào có trong file).
+function parseArrivalWorkbookRows(wb){
+  let best = null;
+  for(const sheetName of wb.SheetNames){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true, defval:""});
+    for(let r=0; r<Math.min(rows.length,15); r++){
+      const keys = rows[r].map(headerKey);
+      const idxMaSP = keys.findIndex(k=>k==="masanpham");
+      if(idxMaSP<0) continue;
+      const idxQtyDaNhap = keys.findIndex(k=>k.startsWith("sldanhap"));
+      const idxQtyYeuCau = keys.findIndex(k=>k.startsWith("slyeucau"));
+      const idxQtyDaNhan = keys.findIndex(k=>k.startsWith("sldanhan"));
+      const idxQty = idxQtyDaNhap>=0 ? idxQtyDaNhap : (idxQtyYeuCau>=0 ? idxQtyYeuCau : idxQtyDaNhan);
+      if(idxQty>=0){
+        best = { rows, headerRow:r, idx:{
+          maSP: idxMaSP,
+          maThamChieu: keys.findIndex(k=>k.startsWith("mathamchieu")),
+          tenSP: keys.findIndex(k=>k==="tensanpham"),
+          qty: idxQty
+        }};
+        break;
+      }
+    }
+    if(best) break;
+  }
+  if(!best) throw new Error("Không tìm thấy bảng dữ liệu (cần cột 'Mã sản phẩm' và số lượng) trong file.");
+
+  const { rows, headerRow, idx } = best;
+  const out = [];
+  const g = (r,i)=> i>=0 ? cellToStr(r[i]) : "";
+  for(let i=headerRow+1;i<rows.length;i++){
+    const r = rows[i];
+    const maSP = idx.maSP>=0 ? cellToProductCode(r[idx.maSP]) : "";
+    if(!maSP) continue;
+    out.push({
+      maSP,
+      maThamChieu: g(r, idx.maThamChieu),
+      tenSP: g(r, idx.tenSP),
+      sl: idx.qty>=0 ? (parseFloat(r[idx.qty])||0) : 0
+    });
+  }
+  return { rows: out };
+}
+async function parseArrivalFile(file){
+  const buf = await readFileAsArrayBuffer(file);
+  return parseArrivalWorkbookRows(XLSX.read(buf, {type:"array"}));
+}
+
+/* ============ Dán tay: hàng sắp về ============ */
+// Tách 1 dòng thành các cột: ưu tiên Tab (chuẩn khi copy từ Excel); nếu dòng không có
+// Tab nào (vd gõ tay, dán từ nơi không giữ định dạng bảng) thì tự tách theo 2+ khoảng trắng liên tiếp.
+function splitLine(line){
+  if(line.includes("\t")) return line.split("\t").map(s=>s.trim());
+  return line.split(/\s{2,}/).map(s=>s.trim());
+}
+
+// Nếu dòng đầu tiên là tiêu đề (có "Mã sản phẩm" + 1 cột số lượng nào đó), dò VỊ TRÍ từng cột
+// theo TÊN thay vì đoán theo thứ tự — khớp đúng dù bảng có thêm cột khác hoặc thứ tự khác nhau.
+// Ưu tiên số lượng: SL yêu cầu > SL đã nhập > SL đã nhận > Số lượng.
+function detectHeaderMap(cols){
+  const keys = cols.map(headerKey);
+  const idxMaSP = keys.findIndex(k=>k==="masanpham");
+  if(idxMaSP<0) return null;
+  const idxYeuCau = keys.findIndex(k=>k.startsWith("slyeucau"));
+  const idxDaNhap = keys.findIndex(k=>k.startsWith("sldanhap"));
+  const idxDaNhan = keys.findIndex(k=>k.startsWith("sldanhan"));
+  const idxSoLuong = keys.findIndex(k=>k==="soluong" || k==="sl");
+  const idxQty = idxYeuCau>=0?idxYeuCau : idxDaNhap>=0?idxDaNhap : idxDaNhan>=0?idxDaNhan : idxSoLuong;
+  if(idxQty<0) return null;
+  return {
+    maSP: idxMaSP,
+    maThamChieu: keys.findIndex(k=>k.startsWith("mathamchieu")),
+    tenSP: keys.findIndex(k=>k==="tensanpham"),
+    qty: idxQty
+  };
+}
+
+function parseUpcomingPaste(text){
+  const rawLines = text.split(/\r?\n/);
+
+  // GỘP LẠI dòng bị tách đôi: khi copy nguyên phiếu nhập hàng từ hệ thống, ô "Mã sản phẩm"
+  // tự xuống dòng nên 1 sản phẩm bị chẻ thành 2 dòng text — dòng 1 chỉ có mã SP (không có Tab),
+  // dòng 2 bắt đầu bằng Tab chứa phần còn lại (mã tham chiếu/tên SP/SL...). Ghép lại thành 1 dòng.
+  const merged = [];
+  for(let i=0;i<rawLines.length;i++){
+    const line = rawLines[i];
+    const trimmed = line.trim();
+    if(!trimmed) continue;
+    if(!line.includes("\t") && i+1<rawLines.length && rawLines[i+1].startsWith("\t")){
+      merged.push(trimmed + rawLines[i+1]);
+      i++; // dòng kế tiếp đã được gộp vào, bỏ qua
+    } else {
+      merged.push(line.trim());
+    }
+  }
+
+  // Dò dòng TIÊU ĐỀ ở bất kỳ đâu trong văn bản dán vào (không bắt buộc phải là dòng đầu tiên) —
+  // để Trí có thể dán nguyên cả phiếu (kèm phần thông tin công ty/cửa hàng phía trên bảng).
+  let headerMap = null, headerIdx = -1;
+  for(let i=0;i<merged.length;i++){
+    const hm = detectHeaderMap(splitLine(merged[i]));
+    if(hm){ headerMap = hm; headerIdx = i; break; }
+  }
+  const dataLines = headerMap ? merged.slice(headerIdx+1) : merged;
+
+  const valid = [], skipped = [];
+  for(const line of dataLines){
+    const cols = splitLine(line);
+    if(/^0+$/.test((cols[0]||"").replace(/[^0-9]/g,"")) && cols.every(c=>!c || /^0+$/.test(c.replace(/[^0-9]/g,"")))) continue; // dòng placeholder toàn số 0
+
+    let maSP="", maThamChieu="", tenSP="", slRaw="";
+    if(headerMap){
+      maSP = cellToProductCode(cols[headerMap.maSP]||"");
+      maThamChieu = headerMap.maThamChieu>=0 ? (cols[headerMap.maThamChieu]||"") : "";
+      tenSP = headerMap.tenSP>=0 ? (cols[headerMap.tenSP]||"") : "";
+      slRaw = cols[headerMap.qty]!==undefined ? cols[headerMap.qty] : "";
+    } else {
+      if(cols.length<2){ skipped.push({line, reason:"Không đủ cột (cần ít nhất Mã SP + Số lượng)"}); continue; }
+      const k0 = headerKey(cols[0]);
+      if(k0==="msp" || k0==="masanpham" || k0==="masp" || k0==="barcode") continue; // dòng tiêu đề lẻ, bỏ qua âm thầm
+      if(cols.length>=4){ maSP=cellToProductCode(cols[0]); maThamChieu=cols[1]; tenSP=cols[2]; slRaw=cols[3]; }
+      else if(cols.length===3){ maSP=cellToProductCode(cols[0]); tenSP=cols[1]; slRaw=cols[2]; }
+      else { maSP=cellToProductCode(cols[0]); slRaw=cols[1]; }
+    }
+
+    // Bỏ qua các dòng không phải sản phẩm (chữ ký, ghi chú, dòng trống dữ liệu...) — mã SP thật
+    // luôn chứa số; dòng như "Bên nhận hàng", "(Ký, ghi rõ họ tên)" sẽ không có số nào.
+    if(!maSP || !/\d/.test(maSP)) continue;
+
+    const sl = parseFloat(String(slRaw).replace(/[,\s]/g,"")) || 0;
+    if(sl===0 && slRaw!=="" && !/^0+(\.0+)?$/.test(String(slRaw).trim())){
+      skipped.push({line, reason:`Không đọc được số lượng từ "${slRaw}"`, maSP, tenSP});
+      continue;
+    }
+    valid.push({ maSP, maThamChieu, tenSP, sl });
+  }
+  return { valid, skipped };
+}
+
+/* ============ LƯU TRỮ TẠM (IndexedDB) — để mở lại tool không mất file đã tải ============ */
+// Dùng IndexedDB thay vì localStorage vì file Tồn kho có thể tới hàng chục nghìn dòng,
+// dễ vượt giới hạn ~5MB của localStorage (đặc biệt trên Safari iPhone) khiến việc lưu
+// thất bại âm thầm. IndexedDB có hạn mức lưu trữ lớn hơn nhiều, phù hợp với dữ liệu này.
+const CACHE_KEYS = {
+  stockStart: "pt_stockStart_v1",
+  stockEnd: "pt_stockEnd_v1",
+  arrival: (slot)=>"pt_arrival_"+slot+"_v1",
+  upcomingText: "pt_upcomingText_v1",
+  store: "pt_selectedStore_v1"
+};
+const IDB_NAME = "PhanTichThangDB";
+const IDB_STORE = "cache";
+function openIdb(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore(IDB_STORE); };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function saveCache(key, payload){
+  try{
+    const db = await openIdb();
+    await new Promise((resolve, reject)=>{
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(payload, key);
+      tx.oncomplete = resolve;
+      tx.onerror = ()=>reject(tx.error);
+    });
+    return true;
+  }catch(e){ console.warn("Không lưu được cache ("+key+"):", e); return false; }
+}
+async function loadCache(key){
+  try{
+    const db = await openIdb();
+    return await new Promise((resolve, reject)=>{
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = ()=>resolve(req.result ?? null);
+      req.onerror = ()=>reject(req.error);
+    });
+  }catch(e){ return null; }
+}
+async function deleteCache(key){
+  try{
+    const db = await openIdb();
+    await new Promise((resolve, reject)=>{
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = resolve;
+      tx.onerror = ()=>reject(tx.error);
+    });
+  }catch(e){}
+}
+function fmtSavedAt(ts){
+  const d = new Date(ts); const p = n=>String(n).padStart(2,"0");
+  return `${p(d.getHours())}:${p(d.getMinutes())} ${p(d.getDate())}/${p(d.getMonth()+1)}`;
+}
+
+/* ============ STORE SELECT ============ */
+function refreshStoreOptions(){
+  const sel = $("#storeSelect");
+  const stores = new Set();
+  if(state.stockStart) state.stockStart.storeSet.forEach(s=>stores.add(s));
+  if(state.stockEnd) state.stockEnd.storeSet.forEach(s=>stores.add(s));
+  const sorted = Array.from(stores).sort((a,b)=>a.localeCompare(b,'vi'));
+  const prev = state.selectedStore;
+  sel.innerHTML = '<option value="">— Chọn cửa hàng —</option>' +
+    sorted.map(s=>`<option value="${s.replace(/"/g,'&quot;')}">${s}</option>`).join("");
+  if(prev && stores.has(prev)) sel.value = prev;
+  else if(sorted.length===1){ sel.value = sorted[0]; state.selectedStore = sorted[0]; }
+  $("#storeCount").textContent = sorted.length ? `${sorted.length} cửa hàng có dữ liệu` : "";
+}
+
+/* ============ UPLOAD HANDLERS ============ */
+$("#stockStartFile").onchange = async (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  $("#stockStartMeta").textContent = "Đang xử lý...";
+  try{
+    state.stockStart = await parseInventoryFile(file);
+    $("#stockStartMeta").textContent = `${file.name} · ${state.stockStart.rows.length} dòng`;
+    $("#stockStartCard").classList.add("done");
+    saveCache(CACHE_KEYS.stockStart, {fileName:file.name, savedAt:Date.now(), rows:state.stockStart.rows});
+    refreshStoreOptions();
+    render();
+  }catch(err){ console.error(err); $("#stockStartMeta").textContent = "Lỗi: " + err.message; }
+};
+$("#stockEndFile").onchange = async (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  $("#stockEndMeta").textContent = "Đang xử lý...";
+  try{
+    state.stockEnd = await parseInventoryFile(file);
+    $("#stockEndMeta").textContent = `${file.name} · ${state.stockEnd.rows.length} dòng`;
+    $("#stockEndCard").classList.add("done");
+    saveCache(CACHE_KEYS.stockEnd, {fileName:file.name, savedAt:Date.now(), rows:state.stockEnd.rows});
+    refreshStoreOptions();
+    render();
+  }catch(err){ console.error(err); $("#stockEndMeta").textContent = "Lỗi: " + err.message; }
+};
+
+function wireArrivalSlot(slot, fileId, metaId, cardId){
+  $(fileId).onchange = async (e)=>{
+    const file = e.target.files[0]; if(!file) return;
+    $(metaId).textContent = "Đang xử lý...";
+    try{
+      const data = await parseArrivalFile(file);
+      state.arrivalFiles[slot] = data;
+      state.arrivals = Object.values(state.arrivalFiles).filter(Boolean).flatMap(d=>d.rows);
+      $(metaId).textContent = `${file.name} · ${data.rows.length} SP`;
+      $(cardId).classList.add("done");
+      saveCache(CACHE_KEYS.arrival(slot), {fileName:file.name, savedAt:Date.now(), rows:data.rows});
+      render();
+    }catch(err){ console.error(err); $(metaId).textContent = "Lỗi: " + err.message; }
+  };
+}
+wireArrivalSlot("a1","#arrival1File","#arrival1Meta","#arrival1Card");
+wireArrivalSlot("a2","#arrival2File","#arrival2Meta","#arrival2Card");
+wireArrivalSlot("a3","#arrival3File","#arrival3Meta","#arrival3Card");
+wireArrivalSlot("a4","#arrival4File","#arrival4Meta","#arrival4Card");
+
+function applyUpcomingInput(){
+  const { valid, skipped } = parseUpcomingPaste($("#upcomingPaste").value);
+  state.upcoming = valid;
+  const totalSl = valid.reduce((s,u)=>s+u.sl,0);
+  $("#upcomingCount").textContent = valid.length
+    ? `Đã nhận ${valid.length} sản phẩm · tổng SL ${totalSl}${skipped.length?` · ⚠️ ${skipped.length} dòng bị bỏ qua (kiểm tra lại định dạng)`:''}`
+    : (skipped.length ? `⚠️ Không đọc được dòng nào hợp lệ (${skipped.length} dòng lỗi)` : "Chưa có dữ liệu hợp lệ");
+  saveCache(CACHE_KEYS.upcomingText, { text: $("#upcomingPaste").value, savedAt: Date.now() });
+  render();
+}
+$("#parseUpcomingBtn").onclick = applyUpcomingInput;
+// Tự cập nhật ngay khi dán dữ liệu hoặc khi rời khỏi ô nhập — khỏi quên bấm nút.
+$("#upcomingPaste").addEventListener("paste", ()=>setTimeout(applyUpcomingInput, 0));
+$("#upcomingPaste").addEventListener("blur", applyUpcomingInput);
+
+$("#storeSelect").onchange = (e)=>{
+  state.selectedStore = e.target.value;
+  saveCache(CACHE_KEYS.store, { store: state.selectedStore });
+  render();
+};
+
+$("#clearCacheBtn").onclick = async ()=>{
+  if(!confirm("Xoá toàn bộ file & dữ liệu đã lưu (tồn đầu, tồn cuối, các đợt hàng về, hàng sắp về)? Không thể hoàn tác.")) return;
+  const keys = [CACHE_KEYS.stockStart, CACHE_KEYS.stockEnd, CACHE_KEYS.arrival("a1"), CACHE_KEYS.arrival("a2"), CACHE_KEYS.arrival("a3"), CACHE_KEYS.arrival("a4"), CACHE_KEYS.upcomingText, CACHE_KEYS.store];
+  await Promise.all(keys.map(k=>deleteCache(k)));
+  location.reload();
+};
+
+/* ============ TÍNH TOÁN ============ */
+function buildMonthlyAnalysis(store){
+  const stockStartMap = new Map();
+  if(state.stockStart) state.stockStart.rows.forEach(r=>{ if(r.store===store) stockStartMap.set(r.maSP, r); });
+  const stockEndMap = new Map();
+  if(state.stockEnd) state.stockEnd.rows.forEach(r=>{ if(r.store===store) stockEndMap.set(r.maSP, r); });
+
+  // Index mọi mã (Mã SP lẫn Mã tham chiếu) trỏ về đúng Mã SP thật trong tồn kho.
+  // Mục đích: dữ liệu Hàng về / Hàng sắp về đôi khi ghi mã tham chiếu (barcode) vào
+  // đúng cột được kỳ vọng là "Mã SP" — nếu chỉ so khớp theo đúng 1 cột sẽ bị lệch,
+  // khiến số lượng không cộng vào đúng sản phẩm và bị hiểu nhầm là "SP mới".
+  const codeIndex = new Map();
+  function indexRow(r){
+    if(!r.maSP) return;
+    if(!codeIndex.has(r.maSP)) codeIndex.set(r.maSP, r.maSP);
+    if(r.maThamChieu && !codeIndex.has(r.maThamChieu)) codeIndex.set(r.maThamChieu, r.maSP);
+  }
+  stockEndMap.forEach(indexRow);   // ưu tiên tồn cuối
+  stockStartMap.forEach(indexRow); // bổ sung thêm từ tồn đầu (không ghi đè nếu đã có)
+  function resolveKey(maSP, maThamChieu){
+    if(maSP && codeIndex.has(maSP)) return codeIndex.get(maSP);
+    if(maThamChieu && codeIndex.has(maThamChieu)) return codeIndex.get(maThamChieu);
+    return maSP || maThamChieu || "";
+  }
+
+  const arrivalMap = new Map();
+  state.arrivals.forEach(a=>{
+    const key = resolveKey(a.maSP, a.maThamChieu);
+    if(!key) return;
+    if(!arrivalMap.has(key)) arrivalMap.set(key, {maSP:key, tenSP:a.tenSP, maThamChieu:a.maThamChieu, sl:0});
+    const e2 = arrivalMap.get(key);
+    e2.sl += a.sl||0;
+    if(a.tenSP) e2.tenSP = a.tenSP;
+    if(a.maThamChieu) e2.maThamChieu = a.maThamChieu;
+  });
+  const upcomingMap = new Map();
+  state.upcoming.forEach(u=>{
+    const key = resolveKey(u.maSP, u.maThamChieu);
+    if(!key) return;
+    if(!upcomingMap.has(key)) upcomingMap.set(key, {maSP:key, tenSP:u.tenSP, maThamChieu:u.maThamChieu, sl:0});
+    const e2 = upcomingMap.get(key);
+    e2.sl += u.sl||0;
+    if(u.tenSP) e2.tenSP = u.tenSP;
+    if(u.maThamChieu) e2.maThamChieu = u.maThamChieu;
+  });
+
+  const allKeys = new Set([...stockStartMap.keys(), ...stockEndMap.keys(), ...arrivalMap.keys(), ...upcomingMap.keys()]);
+  const result = [];
+  allKeys.forEach(key=>{
+    const s0=stockStartMap.get(key), s1=stockEndMap.get(key), av=arrivalMap.get(key), up=upcomingMap.get(key);
+    const tonDau = s0?s0.soLuong:0, tonCuoi = s1?s1.soLuong:0, hangVe = av?av.sl:0, sapVe = up?up.sl:0;
+    const daXuatBan = tonDau + hangVe - tonCuoi;
+    const tong = tonCuoi + sapVe;
+    result.push({
+      maSP: key,
+      maThamChieu: (s1&&s1.maThamChieu)||(s0&&s0.maThamChieu)||(av&&av.maThamChieu)||(up&&up.maThamChieu)||"",
+      tenSP: (s1&&s1.tenSP)||(s0&&s0.tenSP)||(av&&av.tenSP)||(up&&up.tenSP)||"(chưa rõ tên)",
+      nganhCap1: (s1&&s1.nganhCap1)||(s0&&s0.nganhCap1)||"",
+      tonDau, tonCuoi, hangVe, daXuatBan, sapVe, tong,
+      // SP mới: có trong Hàng về/Hàng sắp về nhưng KHÔNG có (theo Mã SP, đã đối chiếu cả mã tham chiếu) trong tồn kho CUỐI tháng.
+      isNewSP: !s1 && (av || up),
+      // Cần điều chuyển gấp: CHỈ áp dụng cho SP đã có sức bán trong giai đoạn trước (đã xuất bán >0),
+      // và (tồn hiện tại + sắp về) = 0 hoặc < 50% lượng đã bán tháng đó.
+      isUrgent: daXuatBan>0 && (tong<=0 || tong < daXuatBan*0.5)
+    });
+  });
+  return result;
+}
+
+/* ============ RENDER ============ */
+let categoryRestored = false;
+function refreshCategoryOptions(items){
+  const row = $("#categoryFilterRow"); if(!row) return;
+  const sel = $("#categoryFilter");
+  const cats = new Set(items.map(p=>p.nganhCap1).filter(Boolean));
+  const sorted = Array.from(cats).sort((a,b)=>a.localeCompare(b,'vi'));
+  let prev = sel.value;
+  sel.innerHTML = '<option value="">Tất cả ngành hàng</option>' +
+    sorted.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join("");
+  if(prev && cats.has(prev)) sel.value = prev;
+}
+
+function render(){
+  const store = state.selectedStore;
+  const wrap = $("#phanTichResult");
+  wrap.innerHTML = "";
+
+  if(!store){
+    wrap.appendChild(el("div","empty","Vui lòng <b>chọn tên cửa hàng</b> ở phía trên (hiện ra sau khi tải file Tồn kho đầu hoặc cuối tháng)."));
+    return;
+  }
+  if(!state.stockEnd){
+    wrap.appendChild(el("div","empty","Cần tải <b>file Tồn kho cuối tháng</b> để có số liệu hiện tại làm gốc so sánh."));
+    return;
+  }
+
+  const missing = [];
+  if(!state.stockStart) missing.push("Tồn kho đầu tháng");
+  if(!state.arrivals.length) missing.push("Hàng về trong tháng");
+  if(!state.upcoming.length) missing.push("Hàng sắp về");
+  if(missing.length){
+    wrap.appendChild(el("div","note-box", `⚠️ Chưa có: <b>${missing.join(", ")}</b> — các cột liên quan sẽ tạm tính là 0. Tải/dán thêm để số liệu chính xác hơn.`));
+  }
+
+  const filterWrap = el("div");
+  filterWrap.innerHTML = `
+    <div class="summary-strip" id="summaryStrip"></div>
+    <div class="chip-filters">
+      <button class="chip" id="chipNew"></button>
+      <button class="chip warn" id="chipUrgent"></button>
+    </div>
+    <div class="filter-row" id="categoryFilterRow">
+      <select id="categoryFilter"><option value="">Tất cả ngành hàng</option></select>
+    </div>
+    <div class="searchbar"><input type="search" id="searchPT" placeholder="Tìm theo tên SP, mã SP, mã tham chiếu..."></div>
+    <button class="export-btn" id="exportBtn">📤 Xuất file phân tích tháng</button>
+    <div id="categoryList"></div>
+  `;
+  wrap.appendChild(filterWrap);
+  $("#chipNew").onclick = ()=>{ state.filters.onlyNew = !state.filters.onlyNew; renderList(); };
+  $("#chipUrgent").onclick = ()=>{ state.filters.onlyUrgent = !state.filters.onlyUrgent; renderList(); };
+  $("#categoryFilter").onchange = ()=>renderList();
+  $("#searchPT").oninput = ()=>renderList();
+  $("#exportBtn").onclick = exportPhanTich;
+
+  renderList();
+}
+
+// Chỉ cập nhật phần kết quả (tóm tắt + danh sách theo ngành hàng) — KHÔNG dựng lại
+// khung bộ lọc/ô tìm kiếm, để không mất focus/con trỏ khi đang gõ tìm kiếm.
+function renderList(){
+  const store = state.selectedStore;
+  let items = buildMonthlyAnalysis(store);
+  refreshCategoryOptions(items);
+
+  const newCount = items.filter(p=>p.isNewSP).length;
+  const urgentCount = items.filter(p=>p.isUrgent).length;
+  $("#summaryStrip").innerHTML = `
+    <div class="s"><div class="v">${items.length}</div><div class="l">Tổng SP</div></div>
+    <div class="s new"><div class="v">${newCount}</div><div class="l">SP mới</div></div>
+    <div class="s urgent"><div class="v">${urgentCount}</div><div class="l">Cần điều chuyển</div></div>
+  `;
+  $("#chipNew").innerHTML = `🆕 Chỉ SP mới (${newCount})`;
+  $("#chipUrgent").innerHTML = `🚨 Chỉ cần điều chuyển gấp (${urgentCount})`;
+  $("#chipNew").classList.toggle("on", state.filters.onlyNew);
+  $("#chipUrgent").classList.toggle("on", state.filters.onlyUrgent);
+
+  const category = $("#categoryFilter").value;
+  const q = $("#searchPT").value.trim();
+  const qn = norm(q);
+
+  items = items.filter(p=>{
+    if(state.filters.onlyNew && !p.isNewSP) return false;
+    if(state.filters.onlyUrgent && !p.isUrgent) return false;
+    if(category && p.nganhCap1!==category) return false;
+    if(q && !(norm(p.tenSP).includes(qn) || norm(p.maSP).includes(qn) || norm(p.maThamChieu).includes(qn))) return false;
+    return true;
+  });
+
+  const listWrap = $("#categoryList");
+  listWrap.innerHTML = "";
+  if(items.length===0){
+    listWrap.appendChild(el("div","empty","Không có sản phẩm nào khớp bộ lọc hiện tại."));
+    return;
+  }
+
+  const groups = new Map();
+  items.forEach(p=>{
+    const g = p.nganhCap1 || "Chưa phân loại";
+    if(!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(p);
+  });
+  const groupNames = Array.from(groups.keys()).sort((a,b)=>a.localeCompare(b,'vi'));
+
+  // Nếu đang lọc/tìm kiếm -> tự mở hết để thấy ngay kết quả; mặc định thu gọn cho gọn màn hình.
+  const forceOpen = !!(q || category || state.filters.onlyNew || state.filters.onlyUrgent);
+
+  groupNames.forEach(g=>{
+    const list = groups.get(g).sort((a,b)=> (b.isUrgent-a.isUrgent) || a.tenSP.localeCompare(b.tenSP,'vi'));
+    const gUrgent = list.filter(p=>p.isUrgent).length;
+    const gNew = list.filter(p=>p.isNewSP).length;
+    // Nhóm có SP mới/cần điều chuyển gấp -> tự mở luôn, không để ẩn trong mục thu gọn.
+    const isOpen = forceOpen || gUrgent>0 || gNew>0 || state.openCats.has(g);
+
+    const section = el("div","cat-section"+(isOpen?" open":""));
+    const header = el("div","cat-header",`
+      <div class="name">${g}</div>
+      <div class="counts">
+        ${gNew?`<span class="cat-badge new">🆕 ${gNew}</span>`:''}
+        ${gUrgent?`<span class="cat-badge urgent">🚨 ${gUrgent}</span>`:''}
+        <span class="cat-badge total">${list.length} SP</span>
+        <span class="chev">▾</span>
+      </div>
+    `);
+    header.onclick = ()=>{
+      section.classList.toggle("open");
+      if(section.classList.contains("open")) state.openCats.add(g); else state.openCats.delete(g);
+    };
+    section.appendChild(header);
+
+    const body = el("div","cat-body");
+    list.forEach(p=>{
+      const row = el("div","prod-row"+(p.isUrgent?" urgent":""));
+      row.innerHTML = `
+        ${(p.isNewSP||p.isUrgent)?`<div class="prod-badges">${p.isNewSP?'<span class="p-tag new">🆕 SP mới</span>':''}${p.isUrgent?'<span class="p-tag urgent">🚨 Điều chuyển gấp</span>':''}</div>`:''}
+        <div class="p-name">${p.tenSP}</div>
+        <div class="p-code">Mã SP: ${p.maSP}${p.maThamChieu?` · Mã tham chiếu: ${p.maThamChieu}`:''}</div>
+        <div class="prod-stats">
+          <span class="pill">Đầu tháng<b>${p.tonDau}</b></span>
+          <span class="pill">Về<b>${p.hangVe}</b></span>
+          <span class="pill">Đã bán<b>${p.daXuatBan}</b></span>
+          <span class="pill now ${p.tonCuoi<=0?'low':''}">Hiện tại<b>${p.tonCuoi}</b></span>
+          <span class="pill inc">Sắp về<b>+${p.sapVe}</b></span>
+          <span class="pill total">Tổng<b>${p.tong}</b></span>
+        </div>
+      `;
+      body.appendChild(row);
+    });
+    section.appendChild(body);
+    listWrap.appendChild(section);
+  });
+}
+
+function exportPhanTich(){
+  const store = state.selectedStore;
+  if(!store || !state.stockEnd) return;
+  const items = buildMonthlyAnalysis(store).sort((a,b)=>{
+    const c = (a.nganhCap1||"").localeCompare(b.nganhCap1||"",'vi');
+    if(c!==0) return c;
+    return (a.tenSP||"").localeCompare(b.tenSP||"",'vi');
+  });
+  if(items.length===0){ alert("Không có dữ liệu để xuất."); return; }
+
+  const rows = items.map(p=>({
+    "Ngành hàng cấp 1": p.nganhCap1,
+    "Mã SP": p.maSP,
+    "Mã tham chiếu": p.maThamChieu,
+    "Tên SP": p.tenSP,
+    "Tồn đầu tháng": p.tonDau,
+    "Hàng về": p.hangVe,
+    "Đã xuất bán": p.daXuatBan,
+    "Tồn hiện tại": p.tonCuoi,
+    "Sắp về": p.sapVe,
+    "Tổng (hiện tại+sắp về)": p.tong,
+    "Cảnh báo": [p.isNewSP?"SP mới":"", p.isUrgent?"Cần điều chuyển gấp":""].filter(Boolean).join(" · ")
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:18},{wch:16},{wch:16},{wch:38},{wch:11},{wch:9},{wch:11},{wch:11},{wch:9},{wch:12},{wch:22}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "PhanTichThang");
+  const d = new Date(); const p2=n=>String(n).padStart(2,"0");
+  const safeStore = store.replace(/[\\\/:*?"<>|]/g,"-");
+  XLSX.writeFile(wb, `PhanTichThang_${safeStore}_${p2(d.getDate())}${p2(d.getMonth()+1)}${d.getFullYear()}.xlsx`);
+}
+
+/* ============ INIT: khôi phục dữ liệu đã lưu (nếu có) ============ */
+(async function initFromCache(){
+  const ss = await loadCache(CACHE_KEYS.stockStart);
+  if(ss){
+    state.stockStart = { rows: ss.rows, storeSet: new Set(ss.rows.map(r=>r.store)) };
+    $("#stockStartMeta").textContent = `${ss.fileName} · ${ss.rows.length} dòng · đã lưu ${fmtSavedAt(ss.savedAt)}`;
+    $("#stockStartCard").classList.add("done");
+  }
+  const se = await loadCache(CACHE_KEYS.stockEnd);
+  if(se){
+    state.stockEnd = { rows: se.rows, storeSet: new Set(se.rows.map(r=>r.store)) };
+    $("#stockEndMeta").textContent = `${se.fileName} · ${se.rows.length} dòng · đã lưu ${fmtSavedAt(se.savedAt)}`;
+    $("#stockEndCard").classList.add("done");
+  }
+  for(let i=0;i<4;i++){
+    const slot = ["a1","a2","a3","a4"][i];
+    const c = await loadCache(CACHE_KEYS.arrival(slot));
+    if(c){
+      state.arrivalFiles[slot] = { rows: c.rows };
+      $(`#arrival${i+1}Meta`).textContent = `${c.fileName} · ${c.rows.length} SP · đã lưu ${fmtSavedAt(c.savedAt)}`;
+      $(`#arrival${i+1}Card`).classList.add("done");
+    }
+  }
+  state.arrivals = Object.values(state.arrivalFiles).filter(Boolean).flatMap(d=>d.rows);
+
+  const storeCache = await loadCache(CACHE_KEYS.store);
+  if(storeCache && storeCache.store) state.selectedStore = storeCache.store;
+
+  const up = await loadCache(CACHE_KEYS.upcomingText);
+  if(up && up.text){
+    $("#upcomingPaste").value = up.text;
+    const { valid, skipped } = parseUpcomingPaste(up.text);
+    state.upcoming = valid;
+    const totalSl = valid.reduce((s,u)=>s+u.sl,0);
+    $("#upcomingCount").textContent = valid.length ? `Đã nhận ${valid.length} sản phẩm · tổng SL ${totalSl} · đã lưu ${fmtSavedAt(up.savedAt)}${skipped.length?` · ⚠️ ${skipped.length} dòng lỗi`:''}` : "";
+  }
+
+  refreshStoreOptions();
+  render();
+})();
+
+})();
+</script>
+</body>
+</html>
