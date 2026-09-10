@@ -425,19 +425,24 @@ function renderStamp(rows){
   return { totalYC, totalTK, totalLech, stampText };
 }
 
+const CHENHLECH_KEYS = ['Chênh lệch','Không về hàng'];
 const FILTER_DEFS = [
   { key:'all', label:'Tất cả' },
-  { key:'Không về hàng', label:'Không về hàng' },
   { key:'Chênh lệch', label:'Chênh lệch' },
   { key:'Nhập hết', label:'Nhập hết' },
   { key:'Phát sinh ngoài phiếu', label:'Phát sinh ngoài phiếu' },
 ];
+function matchesFilter(r, key){
+  return key==='Chênh lệch' ? CHENHLECH_KEYS.includes(r.trangThai) : r.trangThai===key;
+}
 
 function renderFilters(rows){
   const counts = {};
   rows.forEach(r=> counts[r.trangThai] = (counts[r.trangThai]||0)+1 );
   $('#filters').innerHTML = FILTER_DEFS.map(f=>{
-    const n = f.key==='all' ? rows.length : (counts[f.key]||0);
+    const n = f.key==='all' ? rows.length
+      : f.key==='Chênh lệch' ? CHENHLECH_KEYS.reduce((s,k)=>s+(counts[k]||0),0)
+      : (counts[f.key]||0);
     if(f.key!=='all' && n===0) return '';
     return `<button data-filter="${f.key}" class="${currentFilter===f.key?'active':''}">${f.label} (${n})</button>`;
   }).join('');
@@ -451,7 +456,7 @@ function renderFilters(rows){
 }
 
 function renderTable(rows){
-  const filtered = currentFilter==='all' ? rows : rows.filter(r=>r.trangThai===currentFilter);
+  const filtered = currentFilter==='all' ? rows : rows.filter(r=>matchesFilter(r, currentFilter));
   if(filtered.length===0){
     $('#resultBody').innerHTML = `<tr><td colspan="6" class="empty">Không có dòng nào phù hợp bộ lọc.</td></tr>`;
     return;
@@ -586,7 +591,7 @@ function renderHistoryList(){
 }
 
 function copyResult(){
-  const filtered = currentFilter==='all' ? currentRows : currentRows.filter(r=>r.trangThai===currentFilter);
+  const filtered = currentFilter==='all' ? currentRows : currentRows.filter(r=>matchesFilter(r, currentFilter));
   const header = ['Mã SP','Tên sản phẩm','SL yêu cầu','SL theo kiện','Lệch','Trạng thái'].join('\t');
   const body = filtered.map(r=>[r.msp,r.name,r.slYeuCau,r.slTheoKien,r.lech,r.trangThai].join('\t')).join('\n');
   const text = header + '\n' + body;
