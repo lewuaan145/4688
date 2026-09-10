@@ -247,6 +247,9 @@
       <label class="filter-checkbox">
         <input type="checkbox" id="chitietTangDon"> Chỉ SP tặng theo đơn hàng
       </label>
+      <label class="filter-checkbox">
+        <input type="checkbox" id="chitietAnDaBan"> Ẩn SP đã bán (có phiếu xuất)
+      </label>
       <div class="result-row">
         <div class="result-count" id="chitietCount"></div>
         <button class="export-btn" id="chitietExport">📤 Xuất Excel</button>
@@ -270,6 +273,9 @@
       </label>
       <label class="filter-checkbox">
         <input type="checkbox" id="tonghopTangDon"> Chỉ SP tặng theo đơn hàng
+      </label>
+      <label class="filter-checkbox">
+        <input type="checkbox" id="tonghopAnDaBan"> Ẩn SP đã bán (có phiếu xuất)
       </label>
       <div class="result-row">
         <div class="result-count" id="tonghopCount"></div>
@@ -848,6 +854,9 @@
     const cbTangDon = $("#chitietTangDon");
     cbTangDon.checked = false;
     cbTangDon.onchange = ()=>{ state.chitietShown=60; renderChiTiet(); };
+    const cbAnDaBan = $("#chitietAnDaBan");
+    cbAnDaBan.checked = false;
+    cbAnDaBan.onchange = ()=>{ state.chitietShown=60; renderChiTiet(); };
     renderChiTiet();
   }
 
@@ -856,10 +865,12 @@
     const statusFilter = $("#chitietFilter").value;
     const hetHanOnly = $("#chitietHetHan").checked;
     const tangDonOnly = $("#chitietTangDon").checked;
+    const anDaBan = $("#chitietAnDaBan").checked;
     return state.moiData.chiTiet.filter(r=>{
       if(statusFilter && (r.tinhTrang || "Chưa xác định") !== statusFilter) return false;
       if(hetHanOnly && !isHetHan(r)) return false;
       if(tangDonOnly && !isTangTheoDonHang(r)) return false;
+      if(anDaBan && r.maPhieuXuat) return false;
       if(!q) return true;
       return normKey(r.tenSanPham).includes(q) || normKey(r.maDinhDanh).includes(q)
           || normKey(r.maSanPham).includes(q) || normKey(r.maThamChieu).includes(q);
@@ -933,6 +944,9 @@
     const cbTangDon = $("#tonghopTangDon");
     cbTangDon.checked = false;
     cbTangDon.onchange = ()=>{ state.tonghopShown=60; renderTongHop(); };
+    const cbAnDaBan = $("#tonghopAnDaBan");
+    cbAnDaBan.checked = false;
+    cbAnDaBan.onchange = ()=>{ state.tonghopShown=60; renderTongHop(); };
     renderTongHop();
   }
 
@@ -947,6 +961,7 @@
     const hideZero = $("#tonghopHideZero").checked;
     const hetHanOnly = $("#tonghopHetHan").checked;
     const tangDonOnly = $("#tonghopTangDon").checked;
+    const anDaBan = $("#tonghopAnDaBan").checked;
     const changedIds = changedOnly ? getChangedIdSet() : null;
 
     return state.moiData.tongHop.filter(r=>{
@@ -957,6 +972,7 @@
       }
       if(hetHanOnly && !isHetHan(r)) return false;
       if(tangDonOnly && !isTangTheoDonHang(r)) return false;
+      if(anDaBan && r.maPhieuXuat) return false;
       if(!q) return true;
       return normKey(r.tenSanPham).includes(q) || normKey(r.maSanPham).includes(q) || normKey(r.maThamChieu).includes(q);
     }).sort((a,b)=>{
