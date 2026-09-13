@@ -132,6 +132,10 @@ table.preview tr.hdr-row td{background:var(--navy);color:#fff;font-weight:700;}
 .topbar-row1{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
 .session-name{font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .session-name-sub{font-size:11px;color:#9FB0D6;font-weight:600;margin-top:1px;}
+.fashion-badge{
+  display:inline-block;margin-top:4px;font-size:10px;font-weight:800;letter-spacing:.03em;
+  color:#152238;background:#7FE0C0;padding:3px 9px;border-radius:99px;
+}
 .topbar-actions{display:flex;gap:8px;flex:none;}
 .icon-btn{
   width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.12);border:none;
@@ -458,6 +462,7 @@ table.preview tr.hdr-row td{background:var(--navy);color:#fff;font-weight:700;}
         <div style="min-width:0;">
           <div class="session-name" id="topSessionName">—</div>
           <div class="session-name-sub" id="topSessionSub">—</div>
+          <span id="fashionBadge" class="fashion-badge" style="display:none;">KIỂM THỜI TRANG · quét = +1</span>
         </div>
         <div class="topbar-actions">
           <button class="icon-btn" id="btnExport" title="Xuất Excel">
@@ -662,6 +667,16 @@ function safeLS(){
   try{ localStorage.setItem("__t","1"); localStorage.removeItem("__t"); return true; }catch(e){ return false; }
 }
 var LS_OK = safeLS();
+
+var FASHION_MODE_KEY = STORAGE_PREFIX + "fashionMode";
+var fashionMode = false;
+(function loadFashionMode(){
+  if(!LS_OK) return;
+  try{ fashionMode = localStorage.getItem(FASHION_MODE_KEY)==="1"; }catch(e){}
+})();
+function applyFashionBadge(){
+  $("#fashionBadge").style.display = fashionMode ? "inline-block" : "none";
+}
 
 function getSessionsList(){
   if(!LS_OK) return [];
@@ -940,6 +955,7 @@ function enterMainScreen(){
 
   $("#topSessionName").textContent = state.sessionName;
   $("#topSessionSub").textContent = state.products.length + " SKU trong danh sách";
+  applyFashionBadge();
 
   renderCategoryChips();
   renderKeywordChips();
@@ -1294,6 +1310,7 @@ $("#btnMenu").addEventListener("click", function(){
       '<div class="field-row"><label>Người kiểm <span class="opt">(hiện trong file xuất)</span></label><input type="text" class="text-input" id="editCheckerName" value="'+escapeHtml(state.checkerName)+'" placeholder="Tên nhân viên kiểm"></div>'+
       '<button class="btn block" id="btnSaveMeta" style="margin-bottom:10px;">Lưu thông tin</button>'+
       '<button class="btn ghost block" id="btnExportMenu" style="margin-bottom:10px;">Xuất file Excel kết quả</button>'+
+      '<button class="btn '+(fashionMode?'':'ghost')+' block" id="btnToggleFashion" style="margin-bottom:10px;">'+(fashionMode?'✓ ':'')+'Chế độ kiểm thời trang (quét = +1)</button>'+
       '<button class="btn ghost block" id="btnResetFab" style="margin-bottom:10px;">Đặt lại vị trí nút quét mã</button>'+
       '<button class="btn ghost block" id="btnNewSession" style="margin-bottom:10px;">Bắt đầu phiên kiểm mới</button>'+
       '<button class="btn danger block" id="btnDeleteSession">Xoá phiên kiểm này</button>'+
@@ -1308,6 +1325,13 @@ $("#btnMenu").addEventListener("click", function(){
     closeModal();
   });
   $("#btnExportMenu").addEventListener("click", function(){ closeModal(); exportExcel(); });
+  $("#btnToggleFashion").addEventListener("click", function(){
+    fashionMode = !fashionMode;
+    if(LS_OK){ try{ localStorage.setItem(FASHION_MODE_KEY, fashionMode?"1":"0"); }catch(e){} }
+    applyFashionBadge();
+    closeModal();
+    toast(fashionMode ? "Đã bật chế độ kiểm thời trang — quét mã sẽ tự cộng 1" : "Đã tắt chế độ kiểm thời trang");
+  });
   $("#btnResetFab").addEventListener("click", function(){
     resetFabPos();
     closeModal();
@@ -1725,6 +1749,15 @@ function handleScannedCode(code){
 
   var target = candidates[0];
   var related = candidates.length===1 ? relatedProducts(target) : [];
+  var autoAdded = false;
+  if(candidates.length===1 && fashionMode){
+    var curSl = target.slKiem===null ? 0 : target.slKiem;
+    target.slKiem = curSl + 1;
+    syncRowVisual(target);
+    updateHeaderStats();
+    schedulePersist();
+    autoAdded = true;
+  }
 
   if(related.length){
     // Broaden the list to the whole product line (all sizes/colors) instead of
@@ -1736,9 +1769,13 @@ function handleScannedCode(code){
   runSearch();
 
   if(candidates.length===1){
-    toast(related.length
-      ? "Tìm thấy: "+target.ten+" — "+(related.length+1)+" sản phẩm cùng dòng"
-      : "Tìm thấy: "+target.ten);
+    if(autoAdded){
+      toast("+1 "+target.ten+" — SL đã kiểm: "+target.slKiem);
+    }else{
+      toast(related.length
+        ? "Tìm thấy: "+target.ten+" — "+(related.length+1)+" sản phẩm cùng dòng"
+        : "Tìm thấy: "+target.ten);
+    }
   }else{
     toast("Tìm thấy "+candidates.length+" sản phẩm khớp mã "+cleanCode);
   }
