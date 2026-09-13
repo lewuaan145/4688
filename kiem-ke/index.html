@@ -662,7 +662,75 @@ function guessColumn(headers, field){
   return -1;
 }
 
-/* ===================== SESSIONS (localStorage) ===================== */
+/* ===================== LARGE STORAGE (IndexedDB) =====================
+   localStorage is capped at ~5-10MB total per browser, which is not
+   enough once you keep several checking sessions with many SKUs.
+   IndexedDB has a much bigger quota (usually hundreds of MB, often
+   a large % of free disk space), so the heavy per-session product
+   data is stored there. localStorage is still used only for the
+   small "sessions list" (names + progress), which stays tiny. */
+var IDB_NAME = "kiemhang_sessions_db";
+var IDB_STORE = "session_data";
+var _idbPromise = null;
+function idbOpen(){
+  if(_idbPromise) return _idbPromise;
+  _idbPromise = new Promise(function(resolve){
+    if(!window.indexedDB){ resolve(null); return; }
+    try{
+      var req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = function(){
+        var db = req.result;
+        if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+      };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ resolve(null); };
+      req.onblocked = function(){ resolve(null); };
+    }catch(e){ resolve(null); }
+  });
+  return _idbPromise;
+}
+function idbPut(id, data){
+  return idbOpen().then(function(db){
+    if(!db) return false;
+    return new Promise(function(resolve){
+      try{
+        var tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).put(data, id);
+        tx.oncomplete = function(){ resolve(true); };
+        tx.onerror = function(){ resolve(false); };
+        tx.onabort = function(){ resolve(false); };
+      }catch(e){ resolve(false); }
+    });
+  });
+}
+function idbGet(id){
+  return idbOpen().then(function(db){
+    if(!db) return null;
+    return new Promise(function(resolve){
+      try{
+        var tx = db.transaction(IDB_STORE, "readonly");
+        var req = tx.objectStore(IDB_STORE).get(id);
+        req.onsuccess = function(){ resolve(req.result || null); };
+        req.onerror = function(){ resolve(null); };
+      }catch(e){ resolve(null); }
+    });
+  });
+}
+function idbDelete(id){
+  return idbOpen().then(function(db){
+    if(!db) return false;
+    return new Promise(function(resolve){
+      try{
+        var tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).delete(id);
+        tx.oncomplete = function(){ resolve(true); };
+        tx.onerror = function(){ resolve(false); };
+      }catch(e){ resolve(false); }
+    });
+  });
+}
+
+/* ===================== SESSIONS (list = localStorage, data = IndexedDB) ===================== */
 function safeLS(){
   try{ localStorage.setItem("__t","1"); localStorage.removeItem("__t"); return true; }catch(e){ return false; }
 }
@@ -690,7 +758,7 @@ function saveSessionsList(list){
   try{ localStorage.setItem(SESSIONS_KEY, JSON.stringify(list)); }catch(e){}
 }
 function persistSession(){
-  if(!LS_OK || !state.sessionId) return;
+  if(!state.sessionId) return;
   var list = getSessionsList();
   var meta = {
     id: state.sessionId,
@@ -700,17 +768,57 @@ function persistSession(){
     total: state.products.length,
     checked: state.products.filter(function(p){return p.slKiem!==null;}).length
   };
+  var prevList = list.slice();
   var found=false;
   for(var i=0;i<list.length;i++){ if(list[i].id===state.sessionId){ list[i]=meta; found=true; break; } }
   if(!found) list.unshift(meta);
-  saveSessionsList(list);
-  try{
-    localStorage.setItem(STORAGE_PREFIX+"data_"+state.sessionId, JSON.stringify({
-      sessionName: state.sessionName,
-      checkerName: state.checkerName,
-      products: state.products
-    }));
-  }catch(e){ /* storage full - ignore silently, export still works */ }
+  var payload = {
+    sessionName: state.sessionName,
+    checkerName: state.checkerName,
+    products: state.products
+  };
+  var sid = state.sessionId;
+  idbPut(sid, payload).then(function(ok){
+    if(ok){
+      if(!LS_OK) return; // data saved fine in IndexedDB; list just won't show, nothing to roll back
+      saveSessionsList(list);
+      // Clean up any old copy that may have been saved to localStorage before
+      // IndexedDB was available/working, to free up that quota.
+      try{ localStorage.removeItem(STORAGE_PREFIX+"data_"+sid); }catch(e){}
+      return;
+    }
+    // IndexedDB unavailable or failed: fall back to the old localStorage
+    // path (small sessions only) rather than losing the save entirely.
+    if(!LS_OK){ showSaveFailureWarning(new Error("No storage backend available")); return; }
+    try{
+      localStorage.setItem(STORAGE_PREFIX+"data_"+sid, JSON.stringify(payload));
+      saveSessionsList(list);
+    }catch(e){
+      /* Storage full or blocked: do NOT silently pretend this saved.
+         Roll back the metadata list so we never show a "session" whose
+         data isn't actually there (this was the cause of
+         "Khong tai duoc phien nay" after reopening). */
+      saveSessionsList(prevList);
+      try{ localStorage.removeItem(STORAGE_PREFIX+"data_"+sid); }catch(e2){}
+      showSaveFailureWarning(e);
+    }
+  });
+}
+
+var _saveWarnShown = false;
+function showSaveFailureWarning(err){
+  var msg = "KHONG LUU DUOC PHIEN KIEM! Du lieu vua thay doi se MAT khi thoat/tai lai trang.\n\n"+
+    "Nguyen nhan thuong gap:\n"+
+    "- Bo nho luu tru cua trinh duyet (localStorage) da day (qua nhieu phien cu).\n"+
+    "- Dang mo file nay truc tiep bang duong dan file:// va trinh duyet chan/khong dong bo luu tru giua cac lan mo.\n"+
+    "- Dang o che do rieng tu / an danh (Incognito), du lieu se bi xoa khi dong cua so.\n\n"+
+    "Cach khac phuc:\n"+
+    "1) Xoa bot cac phien kiem cu khong can dung (nut Xoa trong danh sach phien).\n"+
+    "2) Mo file nay qua mot dia chi http://... (vi du chay mot local server) thay vi mo truc tiep file tren dia, va dung cung mot trinh duyet/cua so binh thuong (khong Incognito) moi lan.\n"+
+    "3) Neu van bi mat du lieu, dung nut Xuat/Export (neu co) de luu file ra ngoai ngay sau khi kiem xong.";
+  try{ console.error("Save failed:", err); }catch(e){}
+  toast("Loi luu phien: bo nho day hoac bi chan. Xem canh bao chi tiet.");
+  if(!_saveWarnShown){ _saveWarnShown = true; alert(msg); }
 }
 var persistTimer=null;
 function schedulePersist(){
@@ -718,17 +826,23 @@ function schedulePersist(){
   persistTimer=setTimeout(persistSession, 400);
 }
 function loadSession(id){
-  if(!LS_OK) return null;
-  try{
-    var raw = localStorage.getItem(STORAGE_PREFIX+"data_"+id);
-    return raw ? JSON.parse(raw) : null;
-  }catch(e){ return null; }
+  // Returns a Promise<data|null>. Tries IndexedDB first (current storage),
+  // then falls back to the legacy localStorage key (sessions saved before
+  // this update, or if IndexedDB isn't available in this browser).
+  return idbGet(id).then(function(data){
+    if(data) return data;
+    if(!LS_OK) return null;
+    try{
+      var raw = localStorage.getItem(STORAGE_PREFIX+"data_"+id);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  });
 }
 function deleteSession(id){
-  if(!LS_OK) return;
   var list = getSessionsList().filter(function(s){ return s.id!==id; });
   saveSessionsList(list);
-  try{ localStorage.removeItem(STORAGE_PREFIX+"data_"+id); }catch(e){}
+  idbDelete(id);
+  if(LS_OK){ try{ localStorage.removeItem(STORAGE_PREFIX+"data_"+id); }catch(e){} }
 }
 
 function renderSessionList(){
@@ -765,14 +879,15 @@ function renderSessionList(){
   });
 }
 function resumeSession(id){
-  var data = loadSession(id);
-  if(!data){ toast("Không tải được phiên này"); return; }
-  state.sessionId = id;
-  state.sessionName = data.sessionName;
-  state.checkerName = data.checkerName || "";
-  state.products = data.products || [];
-  state.products.forEach(function(p){ p.searchIdx = buildSearchIdx(p); });
-  enterMainScreen();
+  loadSession(id).then(function(data){
+    if(!data){ toast("Không tải được phiên này"); return; }
+    state.sessionId = id;
+    state.sessionName = data.sessionName;
+    state.checkerName = data.checkerName || "";
+    state.products = data.products || [];
+    state.products.forEach(function(p){ p.searchIdx = buildSearchIdx(p); });
+    enterMainScreen();
+  });
 }
 
 /* ===================== FILE PARSING ===================== */
@@ -1895,6 +2010,10 @@ window.addEventListener("resize", applyFabPos);
 })();
 
 /* ===================== INIT ===================== */
+if(!LS_OK){
+  toast("Trinh duyet dang chan luu tru! Du lieu se KHONG duoc luu.");
+  alert("CANH BAO: trinh duyet cua ban dang chan localStorage (co the do dang mo o che do An danh/Incognito, hoac cai dat chan cookie/luu tru).\n\nMoi du lieu kiem hang se KHONG duoc luu lai va se MAT khi dong trang.\n\nHay mo file nay o cua so trinh duyet binh thuong (khong An danh) va thu lai.");
+}
 renderSessionList();
 })();
 
