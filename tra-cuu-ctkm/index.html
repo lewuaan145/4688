@@ -144,6 +144,8 @@
   .tag.form{background:#f1eefc;color:#6b46d6;}
   .tag.new{background:#0f8f6e;color:#fff;}
   .tag.end{background:var(--amber);color:#fff;}
+  .tag.status-upcoming{background:#eef1fc;color:#3b5bdb;}
+  .tag.status-ended{background:#eef1f6;color:var(--muted);}
   .promo .name{font-size:14px;font-weight:700;line-height:1.4;color:var(--ink);}
   .promo .dates{font-size:11.5px;color:var(--muted);margin-top:6px;font-weight:600;}
   .promo .toggle{
@@ -743,6 +745,14 @@ function findInventory(maSP, maThamChieu){
   return null;
 }
 
+/* SP trong file CTKM nhiều khi thiếu cột "mã tham chiếu" — tra bù bằng mã tham chiếu
+   thật lấy từ file Tồn kho (khớp theo Mã SP), để mã quét/gõ vẫn nhận ra được SP đó. */
+function codeMatchesInventoryRef(maSP, maThamChieu, code){
+  if(!maSP || !code) return false;
+  const inv = findInventory(maSP, maThamChieu);
+  return !!(inv && inv.maThamChieu && inv.maThamChieu === code);
+}
+
 /* Kiểm tra chuỗi gõ vào có khớp CHÍNH XÁC 1 mã SP / mã tham chiếu / mã quà tặng
    đã biết (trong Tồn kho hoặc CTKM) hay không. Dùng để phân biệt "đang gõ mã sản phẩm"
    với "đang gõ tên CTKM / ngành hàng" trong cùng 1 ô tìm kiếm — chỉ mã mới kích hoạt
@@ -756,7 +766,13 @@ function codeExistsExact(code){
 
 /* ============ THẺ TÓM TẮT MÃ VỪA QUÉT ============
    Tra tồn kho + xác định mã này đang là "SP áp dụng" hay "quà tặng"
-   trong những CTKM ĐANG CHẠY tại cửa hàng đang chọn. */
+   trong TẤT CẢ CTKM áp dụng cho cửa hàng đang chọn (mọi mốc thời gian:
+   đang chạy / sắp diễn ra / đã kết thúc), không chỉ riêng CT đang chạy. */
+function promoStatus(p, t){
+  if(p.batDau && p.ketThuc && t>=p.batDau && t<=p.ketThuc) return "active";
+  if(p.batDau && p.batDau > t) return "upcoming";
+  return "ended";
+}
 function computeScanSummary(code){
   const store = state.selectedStore;
   const inv = (state.tonkho && store) ? findInventory(code, code) : null;
@@ -764,29 +780,41 @@ function computeScanSummary(code){
   let saleIn = [], giftIn = [];
   if(state.ctkm && store){
     const t = today0();
-    const active = getApplicablePromos(store).filter(p => p.batDau && p.ketThuc && t>=p.batDau && t<=p.ketThuc);
-    active.forEach(p=>{
+    const all = getApplicablePromos(store);
+    all.forEach(p=>{
       const details = state.ctkm.detailMap.get(p.key) || [];
-      if(details.some(d => d.maSP===code || d.maThamChieu===code)) saleIn.push(p);
-      if(details.some(d => d.giftMa===code || d.giftThamChieu===code)) giftIn.push(p);
+      const status = promoStatus(p, t);
+      if(details.some(d => d.maSP===code || d.maThamChieu===code || codeMatchesInventoryRef(d.maSP, d.maThamChieu, code))) saleIn.push({p, status});
+      if(details.some(d => d.giftMa===code || d.giftThamChieu===code || codeMatchesInventoryRef(d.giftMa, d.giftThamChieu, code))) giftIn.push({p, status});
     });
+    // Trong mỗi vai trò: CT đang chạy trước, rồi sắp diễn ra (gần nhất trước), rồi đã kết thúc (gần nhất trước)
+    const rankOf = s => s==="active"?0:(s==="upcoming"?1:2);
+    const sorter = (a,b)=>{
+      if(rankOf(a.status)!==rankOf(b.status)) return rankOf(a.status)-rankOf(b.status);
+      if(a.status==="upcoming") return (a.p.batDau||0)-(b.p.batDau||0);
+      if(a.status==="ended") return (b.p.ketThuc||0)-(a.p.ketThuc||0);
+      return (a.p.ketThuc||0)-(b.p.ketThuc||0);
+    };
+    saleIn.sort(sorter);
+    giftIn.sort(sorter);
   }
 
   // Tên SP: ưu tiên lấy từ Tồn kho (đáng tin nhất), fallback lấy từ dữ liệu CTKM nếu chưa có
   let name = inv ? inv.tenSP : "";
   if(!name && state.ctkm){
-    const pool = saleIn.length ? saleIn : giftIn;
+    const pool = (saleIn.length ? saleIn : giftIn).map(x=>x.p);
     outer: for(const p of pool){
       const details = state.ctkm.detailMap.get(p.key) || [];
       for(const d of details){
-        if(d.maSP===code || d.maThamChieu===code){ name = d.tenSP; break outer; }
-        if(d.giftMa===code || d.giftThamChieu===code){ name = d.giftTen; break outer; }
+        if(d.maSP===code || d.maThamChieu===code || codeMatchesInventoryRef(d.maSP, d.maThamChieu, code)){ name = d.tenSP; break outer; }
+        if(d.giftMa===code || d.giftThamChieu===code || codeMatchesInventoryRef(d.giftMa, d.giftThamChieu, code)){ name = d.giftTen; break outer; }
       }
     }
   }
   return { code, inv, name, saleIn, giftIn };
 }
 
+const SCAN_STATUS_LABEL = { active:"🟢 đang chạy", upcoming:"🔜 sắp diễn ra", ended:"⏹ đã kết thúc" };
 function renderScanSummary(){
   const box = $("#scanSummary");
   if(!state.scanResult){ box.style.display = "none"; box.innerHTML = ""; return; }
@@ -806,11 +834,12 @@ function renderScanSummary(){
     qtyHtml = `<div class="ss-note">Không tìm thấy mã này trong tồn kho cửa hàng đang chọn.</div>`;
   }
 
+  const fmtList = arr => arr.map(x=>`${x.p.ten} (${SCAN_STATUS_LABEL[x.status]})`).join("; ");
   let roleHtml = "";
-  if(info.saleIn.length) roleHtml += `<div class="ss-role sale">🟢 Đang bán trong ${info.saleIn.length} CTKM: ${info.saleIn.map(p=>p.ten).join("; ")}</div>`;
-  if(info.giftIn.length) roleHtml += `<div class="ss-role gift">🎁 Là quà tặng trong ${info.giftIn.length} CTKM: ${info.giftIn.map(p=>p.ten).join("; ")}</div>`;
+  if(info.saleIn.length) roleHtml += `<div class="ss-role sale">🟢 Là SP áp dụng trong ${info.saleIn.length} CTKM: ${fmtList(info.saleIn)}</div>`;
+  if(info.giftIn.length) roleHtml += `<div class="ss-role gift">🎁 Là quà tặng trong ${info.giftIn.length} CTKM: ${fmtList(info.giftIn)}</div>`;
   if(!roleHtml){
-    roleHtml = `<div class="ss-role none">${state.ctkm ? 'Không có CTKM nào đang chạy áp dụng cho mã này.' : 'Chưa tải file CTKM tháng.'}</div>`;
+    roleHtml = `<div class="ss-role none">${state.ctkm ? 'Không có CTKM nào áp dụng cho mã này.' : 'Chưa tải file CTKM tháng.'}</div>`;
   }
 
   box.innerHTML = `
@@ -897,7 +926,12 @@ function promoMatchesSearch(p, q){
     if(norm(d.maSP).includes(q) || norm(d.maThamChieu).includes(q)) return true;
     if(norm(d.giftMa).includes(q) || norm(d.giftThamChieu).includes(q)) return true;
     if(norm(d.tenSP).includes(q) || norm(d.giftTen).includes(q)) return true;
-    // Mã tham chiếu quà tặng tra được từ file Tồn kho (đáng tin hơn dữ liệu CTKM gốc)
+    // Mã tham chiếu SP áp dụng / quà tặng tra được từ file Tồn kho (đáng tin hơn dữ liệu CTKM gốc,
+    // vì file CTKM nhiều khi thiếu cột mã tham chiếu)
+    if(d.maSP){
+      const invMain = findInventory(d.maSP, d.maThamChieu);
+      if(invMain && norm(invMain.maThamChieu).includes(q)) return true;
+    }
     if(d.giftMa){
       const invGift = findInventory(d.giftMa, d.giftThamChieu);
       if(invGift && norm(invGift.maThamChieu).includes(q)) return true;
@@ -999,9 +1033,11 @@ function renderCtkmTab(){
 
   const q = $("#searchCtkm").value.trim();
 
-  // Khi có lọc theo ngày bắt đầu/kết thúc: duyệt TẤT CẢ CTKM áp dụng (không giới hạn "đang chạy")
-  // để có thể tra cứu cả CT đã qua hoặc sắp tới theo đúng ngày chọn.
-  const baseList = hasDateFilter ? applicable : active;
+  // Khi có lọc theo ngày, HOẶC đang gõ/quét mã tìm kiếm: duyệt TẤT CẢ CTKM áp dụng
+  // (không giới hạn "đang chạy"), để quét 1 mã ra được mọi CTKM liên quan tới mã đó
+  // ở mọi mốc thời gian (đã kết thúc / đang chạy / sắp diễn ra), không chỉ CT đang chạy.
+  const hasSearch = !!q;
+  const baseList = (hasDateFilter || hasSearch) ? applicable : active;
   let shown = baseList.filter(p=>
     promoMatchesSearch(p,q) &&
     (!category || p.nganhHang===category) &&
@@ -1009,9 +1045,20 @@ function renderCtkmTab(){
     (!endFilter || fmtDate(p.ketThuc)===endFilter)
   );
 
-  // sort: nếu có lọc theo ngày -> sắp theo ngày bắt đầu; mặc định (CT đang chạy) -> ưu tiên kết thúc hôm nay/mới hôm nay
+  // sort: có lọc ngày -> theo ngày bắt đầu; có gõ/quét mã tìm kiếm (không lọc ngày) ->
+  // ưu tiên CT đang chạy trước, rồi sắp diễn ra (gần nhất trước), rồi đã kết thúc (gần nhất trước);
+  // mặc định (không tìm kiếm gì, chỉ xem CT đang chạy) -> ưu tiên kết thúc hôm nay/mới hôm nay
   if(hasDateFilter){
     shown.sort((a,b)=> (a.batDau||0) - (b.batDau||0));
+  } else if(hasSearch){
+    const rank = p => (p.batDau && p.ketThuc && t>=p.batDau && t<=p.ketThuc) ? 0 : (p.batDau>t ? 1 : 2);
+    shown.sort((a,b)=>{
+      const ra = rank(a), rb = rank(b);
+      if(ra!==rb) return ra-rb;
+      if(ra===1) return (a.batDau||0)-(b.batDau||0); // sắp diễn ra: gần nhất trước
+      if(ra===2) return (b.ketThuc||0)-(a.ketThuc||0); // đã kết thúc: gần nhất trước
+      return (a.ketThuc||0)-(b.ketThuc||0);
+    });
   } else {
     shown.sort((a,b)=>{
       const aEnd = sameDay(a.ketThuc,t)?0:1, bEnd = sameDay(b.ketThuc,t)?0:1;
@@ -1057,6 +1104,8 @@ function renderCtkmTab(){
   shown.forEach(p=>{
     const isNew = sameDay(p.batDau,t);
     const isEnd = sameDay(p.ketThuc,t);
+    const isUpcoming = p.batDau && p.batDau > t;
+    const isPast = p.ketThuc && p.ketThuc < t && !isEnd;
     const card = el("div","promo");
     if(isNew) card.dataset.new = "1";
     if(isEnd) card.dataset.end = "1";
@@ -1068,6 +1117,8 @@ function renderCtkmTab(){
         <span class="tag form">${p.hinhThucKM||p.hinhThucApDung||"—"}</span>
         ${isNew?'<span class="tag new">🆕 Mới hôm nay</span>':''}
         ${isEnd?'<span class="tag end">⏰ Kết thúc hôm nay</span>':''}
+        ${(!isNew && !isEnd && isUpcoming)?'<span class="tag status-upcoming">🔜 Sắp diễn ra</span>':''}
+        ${(!isNew && !isEnd && isPast)?'<span class="tag status-ended">⏹ Đã kết thúc</span>':''}
       </div>
       <div class="name">${p.ten}</div>
       <div class="dates">📅 ${p.batDauStr} → ${p.ketThucStr} &nbsp;·&nbsp; ${p.loaiChot||""}</div>
@@ -1076,7 +1127,9 @@ function renderCtkmTab(){
         ${details.length? details.map(d=>{
           const invMain = findInventory(d.maSP, d.maThamChieu);
           const invGift = d.giftMa ? findInventory(d.giftMa, d.giftThamChieu) : null;
-          // Ưu tiên mã tham chiếu tra được từ file Tồn kho (đáng tin hơn dữ liệu CTKM gốc)
+          // Ưu tiên mã tham chiếu tra được từ file Tồn kho (đáng tin hơn dữ liệu CTKM gốc,
+          // vì file CTKM nhiều khi để trống cột mã tham chiếu của SP áp dụng)
+          const maThamChieuReal = (invMain && invMain.maThamChieu) || d.maThamChieu || "";
           const giftThamChieuReal = (invGift && invGift.maThamChieu) || d.giftThamChieu || "";
           return `
           <div class="row">
@@ -1084,7 +1137,7 @@ function renderCtkmTab(){
               <div class="col">
                 <div class="col-lbl">📦 SP áp dụng</div>
                 <div class="p-name">${d.tenSP||"(không tên)"}</div>
-                <div class="p-code">${d.maSP?`Mã SP: ${d.maSP}`:''}${d.maThamChieu?`<br>Mã tham chiếu: ${d.maThamChieu}`:''}</div>
+                <div class="p-code">${d.maSP?`Mã SP: ${d.maSP}`:''}${maThamChieuReal?`<br>Mã tham chiếu: ${maThamChieuReal}`:''}</div>
                 ${(d.giaSauGiam||d.tyLeGiam)?`<div class="p-code">Giảm ${d.tyLeGiam?Math.round(parseFloat(d.tyLeGiam)*100)+'%':''}${d.giaSauGiam?(' · Còn '+d.giaSauGiam+'đ'):''}</div>`:''}
                 ${invMain? `<div class="qty ${invMain.soLuong<=0?'zero':''}">${invMain.soLuong} <span class="lbl">tồn kho</span>${invMain.soLuongTreo>0?` · +${invMain.soLuongTreo} treo`:''}</div>` : `<div class="empty-col">${state.tonkho? 'Không có dữ liệu tồn kho':'Chưa tải file Tồn kho'}</div>`}
               </div>
