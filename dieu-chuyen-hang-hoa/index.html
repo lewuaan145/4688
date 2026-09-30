@@ -200,6 +200,16 @@
       <div class="m" id="arrival4Meta">Chưa tải file</div>
       <label class="btn">Chọn file<input type="file" id="arrival4File" accept=".xlsx,.xls"></label>
     </div>
+    <div class="upload-card" id="arrival5Card">
+      <div class="t">Đợt 5</div>
+      <div class="m" id="arrival5Meta">Chưa tải file</div>
+      <label class="btn">Chọn file<input type="file" id="arrival5File" accept=".xlsx,.xls"></label>
+    </div>
+    <div class="upload-card" id="arrival6Card">
+      <div class="t">Đợt 6</div>
+      <div class="m" id="arrival6Meta">Chưa tải file</div>
+      <label class="btn">Chọn file<input type="file" id="arrival6File" accept=".xlsx,.xls"></label>
+    </div>
   </div>
   <div class="hint-text">Mỗi file là 1 phiếu <b>"Chi tiết phiếu nhập"</b> xuất từ hệ thống (cột: Mã sản phẩm, Mã tham chiếu, Tên sản phẩm, SL đã nhập). Cần đủ đợt hàng về xảy ra trong khoảng từ ngày lấy tồn đầu đến ngày lấy tồn cuối.</div>
 
@@ -226,7 +236,7 @@
 const state = {
   stockStart: null,  // {rows, storeSet}
   stockEnd: null,    // {rows, storeSet}
-  arrivalFiles: {a1:null, a2:null, a3:null, a4:null},
+  arrivalFiles: {a1:null, a2:null, a3:null, a4:null, a5:null, a6:null},
   arrivals: [],
   upcoming: [],
   selectedStore: "",
@@ -576,6 +586,8 @@ wireArrivalSlot("a1","#arrival1File","#arrival1Meta","#arrival1Card");
 wireArrivalSlot("a2","#arrival2File","#arrival2Meta","#arrival2Card");
 wireArrivalSlot("a3","#arrival3File","#arrival3Meta","#arrival3Card");
 wireArrivalSlot("a4","#arrival4File","#arrival4Meta","#arrival4Card");
+wireArrivalSlot("a5","#arrival5File","#arrival5Meta","#arrival5Card");
+wireArrivalSlot("a6","#arrival6File","#arrival6Meta","#arrival6Card");
 
 function applyUpcomingInput(){
   const { valid, skipped } = parseUpcomingPaste($("#upcomingPaste").value);
@@ -600,7 +612,7 @@ $("#storeSelect").onchange = (e)=>{
 
 $("#clearCacheBtn").onclick = async ()=>{
   if(!confirm("Xoá toàn bộ file & dữ liệu đã lưu (tồn đầu, tồn cuối, các đợt hàng về, hàng sắp về)? Không thể hoàn tác.")) return;
-  const keys = [CACHE_KEYS.stockStart, CACHE_KEYS.stockEnd, CACHE_KEYS.arrival("a1"), CACHE_KEYS.arrival("a2"), CACHE_KEYS.arrival("a3"), CACHE_KEYS.arrival("a4"), CACHE_KEYS.upcomingText, CACHE_KEYS.store];
+  const keys = [CACHE_KEYS.stockStart, CACHE_KEYS.stockEnd, CACHE_KEYS.arrival("a1"), CACHE_KEYS.arrival("a2"), CACHE_KEYS.arrival("a3"), CACHE_KEYS.arrival("a4"), CACHE_KEYS.arrival("a5"), CACHE_KEYS.arrival("a6"), CACHE_KEYS.upcomingText, CACHE_KEYS.store];
   await Promise.all(keys.map(k=>deleteCache(k)));
   location.reload();
 };
@@ -874,8 +886,8 @@ function exportPhanTich(){
     $("#stockEndMeta").textContent = `${se.fileName} · ${se.rows.length} dòng · đã lưu ${fmtSavedAt(se.savedAt)}`;
     $("#stockEndCard").classList.add("done");
   }
-  for(let i=0;i<4;i++){
-    const slot = ["a1","a2","a3","a4"][i];
+  for(let i=0;i<6;i++){
+    const slot = ["a1","a2","a3","a4","a5","a6"][i];
     const c = await loadCache(CACHE_KEYS.arrival(slot));
     if(c){
       state.arrivalFiles[slot] = { rows: c.rows };
