@@ -148,12 +148,13 @@ table.preview tr.hdr-row td{background:var(--navy);color:#fff;font-weight:700;}
 .progress-stats{display:flex;justify-content:space-between;font-size:11.5px;color:#C4D0EE;font-weight:600;}
 .progress-stats b{color:#fff;font-weight:800;}
 
-.status-chips{display:flex;gap:7px;margin-top:11px;overflow-x:auto;padding-bottom:1px;}
+.status-chips{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:11px;}
 .status-chip{
-  flex:none;padding:7px 12px;border-radius:99px;font-size:12.5px;font-weight:700;
+  padding:8px 2px 7px;border-radius:12px;font-size:10.5px;font-weight:700;line-height:1.25;
   background:rgba(255,255,255,.1);color:#D7DEEF;border:1.5px solid transparent;white-space:nowrap;
+  display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;
 }
-.status-chip .n{margin-left:5px;opacity:.85;}
+.status-chip .n{margin:0;font-size:18px;font-weight:800;opacity:1;font-variant-numeric:tabular-nums;}
 .status-chip.active{background:#fff;color:var(--navy);}
 .status-chip[data-status="thieu"].active{background:var(--bad);color:#fff;}
 .status-chip[data-status="thua"].active{background:var(--warn);color:#fff;}
@@ -335,8 +336,7 @@ table.preview tr.hdr-row td{background:var(--navy);color:#fff;font-weight:700;}
 .scan-topbar .close-scan svg{width:17px;height:17px;stroke:#fff;}
 .scan-topbar .close-scan.on{background:#E7A93C;}
 .scan-topbar .close-scan.off{background:#D8443B;}
-#qr-reader{position:absolute;inset:0;}
-#scanCanvas{position:absolute;inset:0;width:100%;height:100%;background:#000;}
+#scanVideoEl{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
 .scan-frame-wrap{
   position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);
   width:82%;max-width:380px;aspect-ratio:1.3/1;z-index:3;pointer-events:none;
@@ -480,10 +480,10 @@ table.preview tr.hdr-row td{background:var(--navy);color:#fff;font-weight:700;}
       </div>
       <div class="status-chips" id="statusChips">
         <button class="status-chip active" data-status="all">Tất cả <span class="n" id="cnt-all">0</span></button>
-        <button class="status-chip" data-status="chuakiem">Chưa kiểm <span class="n" id="cnt-chuakiem">0</span></button>
+        <button class="status-chip" data-status="chuakiem">Chưa quét <span class="n" id="cnt-chuakiem">0</span></button>
         <button class="status-chip" data-status="thieu">Thiếu <span class="n" id="cnt-thieu">0</span></button>
-        <button class="status-chip" data-status="thua">Thừa <span class="n" id="cnt-thua">0</span></button>
-        <button class="status-chip" data-status="khop">Khớp <span class="n" id="cnt-khop">0</span></button>
+        <button class="status-chip" data-status="khop">Đủ <span class="n" id="cnt-khop">0</span></button>
+        <button class="status-chip" data-status="thua">Dư <span class="n" id="cnt-thua">0</span></button>
       </div>
     </div>
 
@@ -517,9 +517,6 @@ table.preview tr.hdr-row td{background:var(--navy);color:#fff;font-weight:700;}
     <div class="scan-topbar">
       <div class="t">Quét mã vạch sản phẩm</div>
       <div style="display:flex;gap:8px;">
-        <button class="close-scan" id="btnQrToggle" type="button" aria-label="Bật/tắt quét QR">
-          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="21" y2="14"/><line x1="14" y1="21" x2="21" y2="21"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="21" y1="14" x2="21" y2="21"/></svg>
-        </button>
         <button class="close-scan" id="btnTorch" type="button" style="display:none;" aria-label="Đèn pin">
           <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15 14a5 5 0 1 0-6 0v3h6v-3Z"/></svg>
         </button>
@@ -528,14 +525,14 @@ table.preview tr.hdr-row td{background:var(--navy);color:#fff;font-weight:700;}
         </button>
       </div>
     </div>
-    <canvas id="scanCanvas"></canvas>
+    <video id="scanVideoEl" playsinline muted autoplay disablepictureinpicture></video>
     <div class="scan-frame-wrap" id="scanFrame">
       <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
       <div class="laser"></div>
     </div>
     <div class="scan-status" id="scanStatus"></div>
     <div class="scan-hint">Đưa mã vạch vào giữa khung, cách camera 10–15cm
-      <span class="sub">Giữ máy ổn định, đủ sáng • Nhận mọi loại mã: EAN, UPC, Code128, Code39, QR…</span>
+      <span class="sub">Giữ máy ổn định, đủ sáng • Mã vạch: EAN, UPC, Code128, Code39…</span>
     </div>
   </div>
 </div>
@@ -1169,7 +1166,7 @@ function buildProductRows(){
         '<div class="row-badge"></div>'+
       '</div>'+
       '<div class="row-qty">'+
-        '<div class="qty-badge">Chưa kiểm</div>'+
+        '<div class="qty-badge">Chưa quét</div>'+
         '<div class="qty-controls">'+
           '<button type="button" class="qtybtn minus" data-act="minus">−</button>'+
           '<input class="qtyinput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" value="">'+
@@ -1217,11 +1214,11 @@ function syncRowVisual(p){
   refs.qtyInput.value = "";
   refs.qtyInput.classList.remove("neg");
   var badgeText = {
-    khop:"KHỚP", thieu:"THIẾU "+(p.ton-p.slKiem), thua:"THỪA "+(p.slKiem-p.ton), chuakiem:"CHƯA KIỂM"
+    khop:"ĐỦ", thieu:"THIẾU "+(p.ton-p.slKiem), thua:"DƯ "+(p.slKiem-p.ton), chuakiem:"CHƯA QUÉT"
   }[st];
   refs.badge.textContent = badgeText;
   refs.badge.className = "row-badge st-"+st;
-  refs.qtyBadge.innerHTML = (p.slKiem===null) ? "Chưa kiểm" : "Đã kiểm <b>"+p.slKiem+"</b>";
+  refs.qtyBadge.innerHTML = (p.slKiem===null) ? "Chưa quét" : "Đã kiểm <b>"+p.slKiem+"</b>";
 }
 
 // Everything is live - there is no separate "chốt" step. Whatever is typed or tapped
@@ -1426,6 +1423,7 @@ $("#btnMenu").addEventListener("click", function(){
       '<button class="btn block" id="btnSaveMeta" style="margin-bottom:10px;">Lưu thông tin</button>'+
       '<button class="btn ghost block" id="btnExportMenu" style="margin-bottom:10px;">Xuất file Excel kết quả</button>'+
       '<button class="btn '+(fashionMode?'':'ghost')+' block" id="btnToggleFashion" style="margin-bottom:10px;">'+(fashionMode?'✓ ':'')+'Chế độ kiểm thời trang (quét = +1)</button>'+
+      '<button class="btn '+(soundOn?'':'ghost')+' block" id="btnToggleSound" style="margin-bottom:10px;">'+(soundOn?'✓ ':'')+'Âm thanh + đọc ĐỦ / DƯ</button>'+
       '<button class="btn ghost block" id="btnResetFab" style="margin-bottom:10px;">Đặt lại vị trí nút quét mã</button>'+
       '<button class="btn ghost block" id="btnNewSession" style="margin-bottom:10px;">Bắt đầu phiên kiểm mới</button>'+
       '<button class="btn danger block" id="btnDeleteSession">Xoá phiên kiểm này</button>'+
@@ -1446,6 +1444,13 @@ $("#btnMenu").addEventListener("click", function(){
     applyFashionBadge();
     closeModal();
     toast(fashionMode ? "Đã bật chế độ kiểm thời trang — quét mã sẽ tự cộng 1" : "Đã tắt chế độ kiểm thời trang");
+  });
+  $("#btnToggleSound").addEventListener("click", function(){
+    soundOn = !soundOn;
+    if(LS_OK){ try{ localStorage.setItem(SOUND_KEY, soundOn?"1":"0"); }catch(e){} }
+    closeModal();
+    if(soundOn){ unlockAudio(); announceStatus("khop"); }
+    toast(soundOn ? "Đã bật âm thanh + giọng đọc ĐỦ / DƯ" : "Đã tắt âm thanh");
   });
   $("#btnResetFab").addEventListener("click", function(){
     resetFabPos();
@@ -1472,7 +1477,7 @@ $("#btnExport").addEventListener("click", exportExcel);
 function exportExcel(){
   if(!state.products.length){ toast("Chưa có dữ liệu để xuất."); return; }
   var detailHeader = ["Mã hàng","Mã tham chiếu","Tên hàng","Ngành hàng cấp 1","Ngành hàng cấp 2","ĐVT","Tồn hệ thống","SL kiểm thực tế","Chênh lệch","Trạng thái"];
-  var statusLabel = {khop:"Khớp", thieu:"Thiếu", thua:"Thừa", chuakiem:"Chưa kiểm"};
+  var statusLabel = {khop:"Đủ", thieu:"Thiếu", thua:"Dư", chuakiem:"Chưa quét"};
   var detailRows = state.products.map(function(p){
     var st = statusOf(p);
     var sl = p.slKiem === null ? "" : p.slKiem;
@@ -1493,7 +1498,7 @@ function exportExcel(){
     if(st==="thua") c.thua++;
     if(p.slKiem!==null) c.lech += (p.slKiem-p.ton);
   });
-  var summaryHeader = ["Ngành hàng cấp 1","Tổng SKU","Đã kiểm","Chưa kiểm","Khớp","Thiếu","Thừa","Chênh lệch SL (net)"];
+  var summaryHeader = ["Ngành hàng cấp 1","Tổng SKU","Đã kiểm","Chưa quét","Đủ","Thiếu","Dư","Chênh lệch SL (net)"];
   var summaryRows = Object.keys(catMap).map(function(k){
     var c = catMap[k];
     return [k, c.total, c.checked, c.chuakiem, c.khop, c.thieu, c.thua, c.lech];
@@ -1508,7 +1513,7 @@ function exportExcel(){
     ["Thời gian xuất file", fmtDateTime()],
     ["Tổng số SKU", total],
     ["Đã kiểm", checked],
-    ["Chưa kiểm", total-checked]
+    ["Chưa quét", total-checked]
   ];
 
   var wb = XLSX.utils.book_new();
@@ -1565,47 +1570,49 @@ function ensureZxingReady(){
 // Warm up the WASM module in the background right away so the first scan isn't delayed.
 setTimeout(function(){ ensureZxingReady().catch(function(){}); }, 600);
 
-var RETAIL_FORMATS_BASE = ["EAN13","EAN8","UPCA","UPCE","Code128","Code39","Code93","Codabar","ITF","DataMatrix","Aztec","PDF417"];
-var QR_PREF_KEY = STORAGE_PREFIX + "qrEnabled";
-var qrEnabled = true;
-(function loadQrPref(){
-  if(!LS_OK) return;
-  try{
-    var v = localStorage.getItem(QR_PREF_KEY);
-    if(v!==null) qrEnabled = v==="1";
-  }catch(e){}
-})();
-function currentScanFormats(){
-  return qrEnabled ? RETAIL_FORMATS_BASE.concat(["QRCode"]) : RETAIL_FORMATS_BASE;
-}
-function setupQrToggleButton(){
-  var btn = $("#btnQrToggle");
-  btn.classList.toggle("off", !qrEnabled);
-}
+var RETAIL_FORMATS = ["EAN13","EAN8","UPCA","UPCE","Code128","Code39","Code93","ITF","Codabar"];
 
-var scanStream = null, scanTrack = null, scanVideo = null, scanRAF = null;
-var scanDecodeBusy = false, torchOn = false;
-var decodeCanvasEl = null;
-
+var scanStream = null, scanTrack = null, scanVideo = null, scanTimer = null;
+var scanLoopRunning = false, scanGen = 0, torchOn = false;
+var decodeCanvasEl = null, decodeCtx = null;
 var scannerOpening = false;
+var scanIdleTimer = null;   // releases the camera a while after the scanner is closed
+var scanCrop = null;
+var scanAttempt = 0;
+var nativeDetector = null;  // BarcodeDetector (Android Chrome...) - far faster than WASM when present
+
+function initNativeDetector(){
+  if(nativeDetector!==null) return;
+  nativeDetector = false;
+  try{
+    if(window.BarcodeDetector && BarcodeDetector.getSupportedFormats){
+      BarcodeDetector.getSupportedFormats().then(function(sup){
+        var want = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","code_93","itf","codabar"]
+          .filter(function(f){ return sup.indexOf(f)>-1; });
+        if(want.length) nativeDetector = new BarcodeDetector({ formats: want });
+      }).catch(function(){});
+    }
+  }catch(e){}
+}
 
 function openScanner(){
   commitActiveQtyInput();
-  if(scannerOpening) return; // ignore rapid double-taps while a request is already in flight
+  unlockAudio();
+  if(scannerOpening) return; // ignore rapid double-taps
   scannerOpening = true;
+  clearTimeout(scanIdleTimer);
 
   var overlay = $("#scannerOverlay");
   overlay.classList.remove("found");
   overlay.classList.add("show");
-  $("#scanStatus").textContent = "Đang mở camera…";
-  $("#btnTorch").style.display = "none";
   $("#btnTorch").classList.remove("on");
-  setupQrToggleButton();
   torchOn = false;
   scannerBusy = false;
   scannerLastCode = null;
   scannerLastAt = 0;
+  scanVideo = $("#scanVideoEl");
 
+  initNativeDetector();
   ensureZxingReady().catch(function(e){ console.error("ZXing init failed", e); });
 
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
@@ -1614,149 +1621,158 @@ function openScanner(){
     return;
   }
 
-  // Fully release any camera session still lingering from a previous scan before
-  // requesting a new one - iOS Safari can otherwise appear to "freeze" for a few
-  // seconds if a new getUserMedia call races the hardware releasing the old stream.
-  stopScanStream();
-
-  function requestCamera(){
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-      audio: false
-    }).then(function(stream){
-      if(!overlay.classList.contains("show")){
-        // user closed the scanner while permission/hardware was still being acquired
-        stream.getTracks().forEach(function(t){ try{ t.stop(); }catch(e){} });
-        scannerOpening = false;
-        return;
-      }
-      scanStream = stream;
-      scanTrack = stream.getVideoTracks()[0];
-      scanVideo = document.createElement("video");
-      scanVideo.setAttribute("playsinline", "");
-      scanVideo.setAttribute("muted", "");
-      scanVideo.muted = true;
-      scanVideo.srcObject = stream;
-      var playPromise = scanVideo.play();
-      if(playPromise && playPromise.catch) playPromise.catch(function(){});
-
-      $("#scanStatus").textContent = "";
-      try{ scanTrack.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){}
-      setupTorchButton();
-
-      scanVideo.addEventListener("loadedmetadata", function(){ startScanLoop(); }, { once: true });
-      scannerOpening = false;
-    }).catch(function(err){
-      $("#scanStatus").textContent = "Không mở được camera. Kiểm tra quyền truy cập camera cho trình duyệt.";
-      console.error(err);
-      scannerOpening = false;
-    });
+  // Camera still warm from a scan a moment ago -> reuse the same stream: opens instantly.
+  if(scanStream && scanTrack && scanTrack.readyState==="live"){
+    $("#scanStatus").textContent = "";
+    var pp = scanVideo.play();
+    if(pp && pp.catch) pp.catch(function(){});
+    scannerOpening = false;
+    startScanLoop();
+    return;
   }
-  // A short delay gives the previous stream's tracks time to actually release the
-  // hardware before we ask for a new one - this is the main fix for the freeze.
-  setTimeout(requestCamera, 120);
+
+  $("#scanStatus").textContent = "Đang mở camera…";
+  stopScanStream();
+  navigator.mediaDevices.getUserMedia({
+    // 720p is plenty for a barcode inside the guide frame and is much lighter than 1080p.
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false
+  }).then(function(stream){
+    if(!overlay.classList.contains("show")){
+      stream.getTracks().forEach(function(t){ try{ t.stop(); }catch(e){} });
+      scannerOpening = false;
+      return;
+    }
+    scanStream = stream;
+    scanTrack = stream.getVideoTracks()[0];
+    scanVideo.muted = true;
+    scanVideo.setAttribute("playsinline", "");
+    scanVideo.srcObject = stream;
+    var pr = scanVideo.play();
+    if(pr && pr.catch) pr.catch(function(){});
+    $("#scanStatus").textContent = "";
+    try{
+      var ap = scanTrack.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+      if(ap && ap.catch) ap.catch(function(){});
+    }catch(e){}
+    setupTorchButton();
+    scannerOpening = false;
+    startScanLoop();
+  }).catch(function(err){
+    $("#scanStatus").textContent = "Không mở được camera. Kiểm tra quyền truy cập camera cho trình duyệt.";
+    console.error(err);
+    scannerOpening = false;
+  });
 }
 
-var scanDisplayMap = null; // cached {scale, offsetX, offsetY, crop:{x,y,w,h}}
-
-function computeDisplayAndGuideMap(vw, vh, canvas){
-  var scale = Math.max(canvas.width / vw, canvas.height / vh);
-  var offsetX = (canvas.width - vw * scale) / 2;
-  var offsetY = (canvas.height - vh * scale) / 2;
-
-  var guideEl = $("#scanFrame");
-  var canvasRect = canvas.getBoundingClientRect();
-  var guideRect = guideEl.getBoundingClientRect();
-  var gx = guideRect.left - canvasRect.left;
-  var gy = guideRect.top - canvasRect.top;
-  var gw = guideRect.width, gh = guideRect.height;
-
-  // Map the on-screen guide box back into the video's native pixel space -
-  // this is the region we decode, while the preview itself stays un-zoomed.
-  var vx = (gx - offsetX) / scale;
-  var vy = (gy - offsetY) / scale;
-  var vwid = gw / scale;
-  var vhei = gh / scale;
+// The live preview is the <video> element itself (GPU-composited) - no per-frame canvas
+// copy. We only copy the small guide-frame region when we actually try to decode.
+function computeGuideCrop(video){
+  var vw = video.videoWidth, vh = video.videoHeight;
+  var dispW = video.clientWidth, dispH = video.clientHeight;
+  var scale = Math.max(dispW / vw, dispH / vh);
+  var offsetX = (dispW - vw * scale) / 2;
+  var offsetY = (dispH - vh * scale) / 2;
+  var vr = video.getBoundingClientRect();
+  var gr = $("#scanFrame").getBoundingClientRect();
+  var gx = gr.left - vr.left, gy = gr.top - vr.top;
+  var padX = gr.width * 0.06, padY = gr.height * 0.06;
+  var vx = (gx - padX - offsetX) / scale;
+  var vy = (gy - padY - offsetY) / scale;
+  var vwid = (gr.width + padX*2) / scale;
+  var vhei = (gr.height + padY*2) / scale;
   vx = Math.max(0, Math.min(vx, vw));
   vy = Math.max(0, Math.min(vy, vh));
   vwid = Math.max(10, Math.min(vwid, vw - vx));
   vhei = Math.max(10, Math.min(vhei, vh - vy));
-
-  return {
-    scale: scale, offsetX: offsetX, offsetY: offsetY,
-    crop: { x: Math.round(vx), y: Math.round(vy), w: Math.round(vwid), h: Math.round(vhei) }
-  };
+  return { x: Math.round(vx), y: Math.round(vy), w: Math.round(vwid), h: Math.round(vhei) };
 }
+window.addEventListener("resize", function(){ scanCrop = null; });
 
 function startScanLoop(){
-  var canvas = $("#scanCanvas");
-  var ctx = canvas.getContext("2d");
-  var lastDecodeAt = 0;
-  var decodeIntervalMs = 200;
-  scanDisplayMap = null;
-
-  function frame(ts){
-    if(!scanVideo){ return; }
-    if(scanVideo.readyState < 2 || !scanVideo.videoWidth){ scanRAF = requestAnimationFrame(frame); return; }
-    var vw = scanVideo.videoWidth, vh = scanVideo.videoHeight;
-
-    var dispW = canvas.clientWidth, dispH = canvas.clientHeight;
-    if(canvas.width !== dispW || canvas.height !== dispH){
-      canvas.width = dispW; canvas.height = dispH; scanDisplayMap = null;
+  if(scanLoopRunning) return;
+  scanLoopRunning = true;
+  scanCrop = null;
+  scanGen++;
+  var gen = scanGen;
+  function tick(){
+    if(!scanLoopRunning || gen!==scanGen || !scanStream) return;
+    if(scanVideo.readyState >= 2 && scanVideo.videoWidth && !scannerBusy){
+      if(!scanCrop) scanCrop = computeGuideCrop(scanVideo);
+      decodeFromCrop(scanCrop, function(){
+        if(scanLoopRunning && gen===scanGen) scanTimer = setTimeout(tick, 50);
+      });
+    }else{
+      scanTimer = setTimeout(tick, 100);
     }
-    if(!scanDisplayMap) scanDisplayMap = computeDisplayAndGuideMap(vw, vh, canvas);
-    var m = scanDisplayMap;
-
-    // Draw the FULL camera frame, scaled to cover the screen like a normal preview - no zoom.
-    ctx.drawImage(scanVideo, 0, 0, vw, vh, m.offsetX, m.offsetY, vw*m.scale, vh*m.scale);
-
-    if(!scanDecodeBusy && !scannerBusy && (ts - lastDecodeAt) > decodeIntervalMs){
-      lastDecodeAt = ts;
-      decodeFromCrop(m.crop);
-    }
-    scanRAF = requestAnimationFrame(frame);
   }
-  scanRAF = requestAnimationFrame(frame);
+  tick();
+}
+function stopScanLoop(){
+  scanLoopRunning = false;
+  scanGen++;
+  if(scanTimer){ clearTimeout(scanTimer); scanTimer = null; }
 }
 
-function decodeFromCrop(crop){
-  if(!scanVideo || crop.w<10 || crop.h<10) return;
-  scanDecodeBusy = true;
-  if(!decodeCanvasEl) decodeCanvasEl = document.createElement("canvas");
-  decodeCanvasEl.width = crop.w;
-  decodeCanvasEl.height = crop.h;
-  var dctx = decodeCanvasEl.getContext("2d", { willReadFrequently: true });
-  dctx.drawImage(scanVideo, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
-  var imageData;
-  try{ imageData = dctx.getImageData(0, 0, crop.w, crop.h); }
-  catch(e){ scanDecodeBusy = false; return; }
+function decodeFromCrop(crop, done){
+  if(!scanVideo || crop.w<10 || crop.h<10){ done(); return; }
+  // Downscale the crop so the decoder never chews on more than ~720px per side.
+  var k = Math.min(1, 720 / Math.max(crop.w, crop.h));
+  var dw = Math.max(10, Math.round(crop.w * k)), dh = Math.max(10, Math.round(crop.h * k));
+  if(!decodeCanvasEl){
+    decodeCanvasEl = document.createElement("canvas");
+    decodeCtx = decodeCanvasEl.getContext("2d", { willReadFrequently: true });
+  }
+  if(decodeCanvasEl.width!==dw) decodeCanvasEl.width = dw;
+  if(decodeCanvasEl.height!==dh) decodeCanvasEl.height = dh;
+  try{ decodeCtx.drawImage(scanVideo, crop.x, crop.y, crop.w, crop.h, 0, 0, dw, dh); }
+  catch(e){ done(); return; }
 
-  ensureZxingReady().then(function(){
-    return ZXingWASM.readBarcodes(imageData, {
-      tryHarder: true,
-      tryRotate: true,
-      tryInvert: true,
-      formats: currentScanFormats(),
-      maxNumberOfSymbols: 1
-    });
-  }).then(function(results){
-    scanDecodeBusy = false;
-    if(results && results.length && results[0].text){
-      onScanDecoded(results[0].text);
-    }
-  }).catch(function(){
-    scanDecodeBusy = false;
+  // Fast pass most of the time; every 3rd attempt do the slow "try everything" pass.
+  scanAttempt++;
+  var thorough = (scanAttempt % 3 === 0);
+
+  function viaZxing(){
+    var imageData;
+    try{ imageData = decodeCtx.getImageData(0, 0, dw, dh); }
+    catch(e){ return Promise.resolve(""); }
+    return ensureZxingReady().then(function(){
+      return ZXingWASM.readBarcodes(imageData, {
+        tryHarder: thorough, tryRotate: thorough, tryInvert: thorough,
+        formats: RETAIL_FORMATS, maxNumberOfSymbols: 1
+      });
+    }).then(function(res){
+      return (res && res.length && res[0].text) ? res[0].text : "";
+    }).catch(function(){ return ""; });
+  }
+
+  var job;
+  if(nativeDetector){
+    job = nativeDetector.detect(decodeCanvasEl).then(function(r){
+      return (r && r.length && r[0].rawValue) ? r[0].rawValue : "";
+    }).catch(function(){ nativeDetector = false; return ""; })
+    .then(function(t){ return t || (thorough ? viaZxing() : ""); });
+  }else{
+    job = viaZxing();
+  }
+  job.then(function(text){
+    if(text) onScanDecoded(text);
+    done();
   });
 }
 
 function stopScanStream(){
-  if(scanRAF){ cancelAnimationFrame(scanRAF); scanRAF = null; }
+  stopScanLoop();
+  clearTimeout(scanIdleTimer);
   if(scanStream){
     scanStream.getTracks().forEach(function(t){ try{ t.stop(); }catch(e){} });
     scanStream = null;
   }
-  scanVideo = null;
   scanTrack = null;
+  if(scanVideo){
+    try{ scanVideo.pause(); }catch(e){}
+    scanVideo.srcObject = null;
+  }
 }
 
 function closeScanner(){
@@ -1764,14 +1780,21 @@ function closeScanner(){
   overlay.classList.remove("show");
   overlay.classList.remove("found");
   scannerOpening = false;
-  stopScanStream();
+  stopScanLoop();
+  if(torchOn && scanTrack){
+    try{ var tp = scanTrack.applyConstraints({ advanced: [{ torch: false }] }); if(tp && tp.catch) tp.catch(function(){}); }catch(e){}
+    torchOn = false;
+    $("#btnTorch").classList.remove("on");
+  }
+  if(scanVideo){ try{ scanVideo.pause(); }catch(e){} }
+  // Keep the camera warm for a short while so the next scan opens instantly,
+  // then release it to save battery.
+  clearTimeout(scanIdleTimer);
+  scanIdleTimer = setTimeout(stopScanStream, 25000);
 }
 $("#btnCloseScan").addEventListener("click", closeScanner);
-$("#btnQrToggle").addEventListener("click", function(){
-  qrEnabled = !qrEnabled;
-  if(LS_OK){ try{ localStorage.setItem(QR_PREF_KEY, qrEnabled ? "1" : "0"); }catch(e){} }
-  setupQrToggleButton();
-  toast(qrEnabled ? "Đã bật quét mã QR" : "Đã tắt quét mã QR — tránh dính mã QR cạnh vạch");
+document.addEventListener("visibilitychange", function(){
+  if(document.hidden){ closeScanner(); stopScanStream(); }
 });
 
 function setupTorchButton(){
@@ -1841,21 +1864,107 @@ function relatedProducts(target){
   });
 }
 
+/* ===================== SOUND + VIETNAMESE VOICE (ĐỦ / DƯ) ===================== */
+var SOUND_KEY = STORAGE_PREFIX + "soundOn";
+var soundOn = true;
+(function loadSoundPref(){
+  if(!LS_OK) return;
+  try{ var v = localStorage.getItem(SOUND_KEY); if(v!==null) soundOn = v==="1"; }catch(e){}
+})();
+
+var audioCtx = null;
+function getAudioCtx(){
+  try{
+    if(!audioCtx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) audioCtx = new AC();
+    }
+    if(audioCtx && audioCtx.state==="suspended") audioCtx.resume();
+  }catch(e){}
+  return audioCtx;
+}
+function beep(freq, startAt, dur, vol){
+  var ctx = getAudioCtx();
+  if(!ctx) return;
+  var t0 = ctx.currentTime + startAt;
+  var osc = ctx.createOscillator(), g = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(t0); osc.stop(t0 + dur + 0.03);
+}
+
+var viVoice = null;
+function pickViVoice(){
+  if(!("speechSynthesis" in window)) return;
+  var vs = speechSynthesis.getVoices() || [];
+  viVoice = null;
+  for(var i=0;i<vs.length;i++){
+    var l = (vs[i].lang||"").toLowerCase().replace("_","-");
+    if(l==="vi-vn" || l.indexOf("vi")===0){ viVoice = vs[i]; break; }
+  }
+}
+if("speechSynthesis" in window){
+  pickViVoice();
+  try{ speechSynthesis.addEventListener("voiceschanged", pickViVoice); }catch(e){ speechSynthesis.onvoiceschanged = pickViVoice; }
+}
+function speakVi(text){
+  if(!("speechSynthesis" in window)) return;
+  try{
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = "vi-VN";
+    if(viVoice) u.voice = viVoice;
+    u.rate = 1; u.pitch = 1; u.volume = 1;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+// iOS/Safari only allow sound + speech after a tap: call this from the scan button's tap.
+function unlockAudio(){
+  getAudioCtx();
+  try{
+    if("speechSynthesis" in window){
+      var u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0; u.lang = "vi-VN";
+      speechSynthesis.speak(u);
+    }
+  }catch(e){}
+}
+// ĐỦ -> one high beep + "Đủ".  DƯ -> two lower beeps + "Dư".
+function announceStatus(st){
+  if(!soundOn) return;
+  if(st==="khop"){
+    beep(1175, 0, 0.16, 0.4);
+    setTimeout(function(){ speakVi("Đủ"); }, 190);
+  }else if(st==="thua"){
+    beep(620, 0, 0.14, 0.45);
+    beep(620, 0.2, 0.14, 0.45);
+    setTimeout(function(){ speakVi("Dư"); }, 400);
+  }
+}
+
+function showAllStatus(){
+  state.filterStatus = "all";
+  $all(".status-chip").forEach(function(b){ b.classList.toggle("active", b.dataset.status==="all"); });
+}
+function showAllCategories(){
+  if(state.filterCategory!=="__all__"){ state.filterCategory = "__all__"; renderCategoryChips(); }
+}
+
 function handleScannedCode(code){
   // Clean stray punctuation a camera/label sometimes introduces (spaces, dashes,
   // parentheses) before using the code for matching or display.
   var cleanCode = code.replace(/[^0-9A-Za-z]/g, "") || code;
-
-  state.filterStatus = "all";
-  $all(".status-chip").forEach(function(b){ b.classList.toggle("active", b.dataset.status==="all"); });
-  state.filterCategory = "__all__";
-  renderCategoryChips();
 
   var normCode = normalize(cleanCode);
   var exact = state.products.filter(function(p){ return codesMatch(p.ma, cleanCode) || codesMatch(p.maThamChieu, cleanCode); });
   var candidates = exact.length ? exact : state.products.filter(function(p){ return p.searchIdx.indexOf(normCode)>-1; });
 
   if(candidates.length===0){
+    showAllStatus(); showAllCategories();
     $("#searchInput").value = cleanCode;
     runSearch();
     toast("Không tìm thấy sản phẩm với mã: "+cleanCode);
@@ -1872,6 +1981,17 @@ function handleScannedCode(code){
     updateHeaderStats();
     schedulePersist();
     autoAdded = true;
+  }
+
+  // Keep the current filter (Thiếu / Dư / Chưa quét...) while scanning; only widen it
+  // when the scanned item (or several matches) would otherwise be hidden by it.
+  if(candidates.length>1 || (state.filterStatus!=="all" && statusOf(target)!==state.filterStatus)) showAllStatus();
+  if(candidates.length>1 || (state.filterCategory!=="__all__" && (target.nganh1||"Chưa phân loại")!==state.filterCategory)) showAllCategories();
+
+  // Sound + voice when the scanned item is ĐỦ or DƯ
+  if(candidates.length===1){
+    var stNow = statusOf(target);
+    if(stNow==="khop" || stNow==="thua") announceStatus(stNow);
   }
 
   if(related.length){
