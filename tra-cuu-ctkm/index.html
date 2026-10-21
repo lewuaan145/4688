@@ -498,8 +498,15 @@ async function parseCTKMWorkbook(file){
 
   const tongHopRows = sheetToRows(wb, "Tổng hợp");
   const chiTietRows = sheetToRows(wb, "Chi tiết");
-  const dschTongHop = sheetToRows(wb, "Sheet tổng hợp DSCH");
-  const dschToanHeThong = sheetToRows(wb, "DSCH Toàn hệ thống");
+  // Tên sheet DSCH đổi qua các tháng -> thử nhiều tên
+  const dschTongHop = sheetToRows(wb, "Sheet tổng hợp DSCH") || sheetToRows(wb, "CTKM chạy theo DSCH");
+  const dschToanHeThong = sheetToRows(wb, "DSCH Toàn hệ thống") || sheetToRows(wb, "total DSCH");
+  // dòng dữ liệu đầu tiên = ngay sau dòng tiêu đề có ô "STT" ở cột C (tránh cứng index 4)
+  const firstDataRow = (rows, fallback) => {
+    if(!rows) return fallback;
+    const h = rows.findIndex((r,i)=> i<10 && (r[2]||"").toString().trim().toUpperCase()==="STT");
+    return h>=0 ? h+1 : fallback;
+  };
 
   if(!tongHopRows) throw new Error("Không tìm thấy sheet 'Tổng hợp' trong file.");
 
@@ -519,8 +526,12 @@ async function parseCTKMWorkbook(file){
   // full store list
   const storeSet = new Set();
   if(dschToanHeThong){
-    for(let i=2;i<dschToanHeThong.length;i++){
-      const store = (dschToanHeThong[i][2]||"").toString().trim();
+    // xác định cột "Tên cửa hàng" theo tiêu đề (file cũ: cột C, file mới "total DSCH": cột B)
+    let nameCol = 2, startRow = 2;
+    const hi = dschToanHeThong.findIndex((r,i)=> i<5 && r.some(c=>(c||"").toString().trim()==="Tên cửa hàng"));
+    if(hi>=0){ nameCol = dschToanHeThong[hi].findIndex(c=>(c||"").toString().trim()==="Tên cửa hàng"); startRow = hi+1; }
+    for(let i=startRow;i<dschToanHeThong.length;i++){
+      const store = (dschToanHeThong[i][nameCol]||"").toString().trim();
       if(store) storeSet.add(store);
     }
   }
@@ -531,9 +542,11 @@ async function parseCTKMWorkbook(file){
 
   // Tổng hợp -> danh sách CTKM  (data bắt đầu dòng index 4)
   const tongHop = [];
-  for(let i=4;i<tongHopRows.length;i++){
+  for(let i=firstDataRow(tongHopRows,4);i<tongHopRows.length;i++){
     const r = tongHopRows[i];
-    const phamVi = (r[3]||"").toString().trim();
+    // chuẩn hóa "Full"/"FULL "/"full" -> "FULL" (lỗi gõ hoa/thường làm mất CTKM)
+    let phamVi = (r[3]||"").toString().trim();
+    if(phamVi.toUpperCase()==="FULL") phamVi = "FULL";
     const stt = (r[2]||"").toString().trim();
     const ten = (r[7]||"").toString().trim();
     if(!phamVi || !stt || !ten) continue;
@@ -559,9 +572,10 @@ async function parseCTKMWorkbook(file){
   // Chi tiết -> map key(phamVi|stt) -> [products]  (data bắt đầu dòng index 4)
   const detailMap = new Map();
   if(chiTietRows){
-    for(let i=4;i<chiTietRows.length;i++){
+    for(let i=firstDataRow(chiTietRows,4);i<chiTietRows.length;i++){
       const r = chiTietRows[i];
-      const phamVi = (r[3]||"").toString().trim();
+      let phamVi = (r[3]||"").toString().trim();
+      if(phamVi.toUpperCase()==="FULL") phamVi = "FULL";
       const stt = (r[2]||"").toString().trim();
       if(!phamVi || !stt) continue;
       const key = phamVi+"|"+stt;
