@@ -1229,6 +1229,7 @@ var QTY_COMMIT_DELAY = 1000; // same ~1s pause for both typing and +/- taps
 
 function commitEntry(p, input){
   var addN = parseInt(input.value || "0", 10) || 0;
+  var stBefore = statusOf(p);
   if(addN !== 0){
     var cur = p.slKiem===null ? 0 : p.slKiem;
     p.slKiem = Math.max(0, cur + addN);
@@ -1236,6 +1237,10 @@ function commitEntry(p, input){
     schedulePersist();
   }
   syncRowVisual(p);
+  if(addN !== 0){
+    var stAfter = statusOf(p);
+    if(stAfter!==stBefore && (stAfter==="khop" || stAfter==="thua")) announceStatus(stAfter);
+  }
 }
 function scheduleCommit(p, input, delay){
   clearTimeout(qtyCommitTimers[p.id]);
@@ -1886,16 +1891,22 @@ function getAudioCtx(){
 function beep(freq, startAt, dur, vol){
   var ctx = getAudioCtx();
   if(!ctx) return;
-  var t0 = ctx.currentTime + startAt;
-  var osc = ctx.createOscillator(), g = ctx.createGain();
-  osc.type = "sine";
-  osc.frequency.value = freq;
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(g); g.connect(ctx.destination);
-  osc.start(t0); osc.stop(t0 + dur + 0.03);
+  function go(){
+    var t0 = ctx.currentTime + startAt;
+    var osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.03);
+  }
+  if(ctx.state==="running") go();
+  else { try{ ctx.resume().then(go).catch(function(){}); }catch(e){} }
 }
+// Keep audio unlocked: any tap on the page wakes the AudioContext (needed on iOS/Safari)
+document.addEventListener("pointerdown", function(){ if(soundOn) getAudioCtx(); }, { passive:true });
 
 var viVoice = null;
 function pickViVoice(){
@@ -1946,6 +1957,12 @@ function announceStatus(st){
   }
 }
 
+// Short tick = scan accepted (used by "kiểm thời trang" where a scan adds +1)
+function successBeep(){
+  if(!soundOn) return;
+  beep(880, 0, 0.09, 0.4);
+}
+
 function showAllStatus(){
   state.filterStatus = "all";
   $all(".status-chip").forEach(function(b){ b.classList.toggle("active", b.dataset.status==="all"); });
@@ -1988,10 +2005,14 @@ function handleScannedCode(code){
   if(candidates.length>1 || (state.filterStatus!=="all" && statusOf(target)!==state.filterStatus)) showAllStatus();
   if(candidates.length>1 || (state.filterCategory!=="__all__" && (target.nganh1||"Chưa phân loại")!==state.filterCategory)) showAllCategories();
 
-  // Sound + voice when the scanned item is ĐỦ or DƯ
+  // Sound: "kiểm thời trang" (+1 per scan) -> tick on success, or ĐỦ / DƯ sound if that
+  // scan makes the item đủ / dư. Normal mode -> ĐỦ / DƯ sound if the found item already is.
   if(candidates.length===1){
     var stNow = statusOf(target);
     if(stNow==="khop" || stNow==="thua") announceStatus(stNow);
+    else if(autoAdded) successBeep();
+  }else if(candidates.length>1 && fashionMode){
+    // several products share this code, nothing was added
   }
 
   if(related.length){
