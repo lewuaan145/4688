@@ -171,6 +171,11 @@
   .detail .col .qty .lbl{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:none;}
   .detail .col .qty.zero{color:#c94a4a;}
   .detail .col .empty-col{color:var(--muted);font-size:11px;}
+  .promo .stock-sum{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
+  .promo .stock-sum .chip{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:8px;padding:3px 9px;background:#f1f3f8;color:var(--ink);}
+  .promo .stock-sum .chip b{font-size:13px;font-weight:900;}
+  .promo .stock-sum .chip.gift{background:#eafaf3;color:#0f8f6e;}
+  .promo .stock-sum .chip.zero{background:#fdecec;color:#c94a4a;}
 
   /* ---- inventory ---- */
   .inv-list{display:flex;flex-direction:column;gap:8px;}
@@ -1124,7 +1129,31 @@ function renderCtkmTab(){
     if(isNew) card.dataset.new = "1";
     if(isEnd) card.dataset.end = "1";
 
-    const details = state.ctkm.detailMap.get(p.key) || [];
+    const rawDetails = state.ctkm.detailMap.get(p.key) || [];
+    // Gắn tồn kho cho từng dòng, rồi sắp xếp: có tồn SP áp dụng lên trước, kế đến có tồn quà tặng
+    const details = rawDetails.map((d,i)=>({
+      d, i,
+      invMain: findInventory(d.maSP, d.maThamChieu),
+      invGift: d.giftMa ? findInventory(d.giftMa, d.giftThamChieu) : null
+    })).sort((x,y)=>{
+      const xm = (x.invMain && x.invMain.soLuong>0) ? 1 : 0, ym = (y.invMain && y.invMain.soLuong>0) ? 1 : 0;
+      if(xm!==ym) return ym-xm;
+      const xg = (x.invGift && x.invGift.soLuong>0) ? 1 : 0, yg = (y.invGift && y.invGift.soLuong>0) ? 1 : 0;
+      if(xg!==yg) return yg-xg;
+      return x.i-y.i;
+    });
+    // Tổng tồn (mỗi mã chỉ cộng 1 lần để không bị nhân đôi khi lặp ở nhiều dòng)
+    let sumMain = 0, sumGift = 0, hasGift = false;
+    const seenMain = new Set(), seenGift = new Set();
+    details.forEach(x=>{
+      if(x.invMain){ const k = x.d.maSP||x.d.maThamChieu; if(!seenMain.has(k)){ seenMain.add(k); sumMain += Math.max(0, x.invMain.soLuong||0); } }
+      if(x.d.giftMa){ hasGift = true; if(x.invGift){ const k = x.d.giftMa; if(!seenGift.has(k)){ seenGift.add(k); sumGift += Math.max(0, x.invGift.soLuong||0); } } }
+    });
+    const stockSumHtml = (state.tonkho && details.length) ? `
+      <div class="stock-sum">
+        <span class="chip ${sumMain<=0?'zero':''}">📦 Tồn SP áp dụng: <b>${sumMain}</b></span>
+        ${hasGift?`<span class="chip gift ${sumGift<=0?'zero':''}">🎁 Tồn quà tặng: <b>${sumGift}</b></span>`:''}
+      </div>` : '';
     card.innerHTML = `
       <div class="tags">
         <span class="tag cat">${p.nganhHang||"—"}</span>
@@ -1136,11 +1165,10 @@ function renderCtkmTab(){
       </div>
       <div class="name">${p.ten}</div>
       <div class="dates">📅 ${p.batDauStr} → ${p.ketThucStr} &nbsp;·&nbsp; ${p.loaiChot||""}</div>
+      ${stockSumHtml}
       <div class="toggle"><span class="chev">▾</span><span>${details.length?`Xem ${details.length} sản phẩm áp dụng`:'Xem chi tiết'}</span></div>
       <div class="detail">
-        ${details.length? details.map(d=>{
-          const invMain = findInventory(d.maSP, d.maThamChieu);
-          const invGift = d.giftMa ? findInventory(d.giftMa, d.giftThamChieu) : null;
+        ${details.length? details.map(({d,invMain,invGift})=>{
           // Ưu tiên mã tham chiếu tra được từ file Tồn kho (đáng tin hơn dữ liệu CTKM gốc,
           // vì file CTKM nhiều khi để trống cột mã tham chiếu của SP áp dụng)
           const maThamChieuReal = (invMain && invMain.maThamChieu) || d.maThamChieu || "";
