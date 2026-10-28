@@ -171,6 +171,18 @@
   .detail .col .qty .lbl{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:none;}
   .detail .col .qty.zero{color:#c94a4a;}
   .detail .col .empty-col{color:var(--muted);font-size:11px;}
+  .detail .cols2{display:flex;gap:10px;align-items:flex-start;margin-top:6px;}
+  .detail .cols2 .colx{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;}
+  .detail .cols2 .colx .col-head{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);padding:0 2px;}
+  .detail .cols2 .colx.gift .col-head{color:#0f8f6e;}
+  .detail .cols2 .item{background:#f7f8fb;border-radius:10px;padding:9px 10px;font-size:12px;}
+  .detail .cols2 .colx.gift .item{background:#eafaf3;}
+  .detail .cols2 .item .p-name{font-weight:700;color:var(--ink);font-size:12px;}
+  .detail .cols2 .item .p-code{color:var(--muted);font-size:11px;margin-top:2px;}
+  .detail .cols2 .item .qty{margin-top:6px;font-size:13px;font-weight:900;color:var(--ink);}
+  .detail .cols2 .item .qty .lbl{font-size:9.5px;font-weight:700;color:var(--muted);}
+  .detail .cols2 .item .qty.zero{color:#c94a4a;}
+  .detail .cols2 .item .empty-col{color:var(--muted);font-size:11px;margin-top:6px;}
   .promo .stock-sum{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
   .promo .stock-sum .chip{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:8px;padding:3px 9px;background:#f1f3f8;color:var(--ink);}
   .promo .stock-sum .chip b{font-size:13px;font-weight:900;}
@@ -1136,10 +1148,14 @@ function renderCtkmTab(){
       invMain: findInventory(d.maSP, d.maThamChieu),
       invGift: d.giftMa ? findInventory(d.giftMa, d.giftThamChieu) : null
     })).sort((x,y)=>{
-      const xm = (x.invMain && x.invMain.soLuong>0) ? 1 : 0, ym = (y.invMain && y.invMain.soLuong>0) ? 1 : 0;
-      if(xm!==ym) return ym-xm;
-      const xg = (x.invGift && x.invGift.soLuong>0) ? 1 : 0, yg = (y.invGift && y.invGift.soLuong>0) ? 1 : 0;
-      if(xg!==yg) return yg-xg;
+      const qm = o => (o.invMain ? (o.invMain.soLuong||0) : 0);
+      const qg = o => (o.invGift ? (o.invGift.soLuong||0) : 0);
+      // Nhóm: 0 = cả SP & quà đều còn tồn, 1 = chỉ SP còn tồn, 2 = chỉ quà còn tồn, 3 = hết cả hai
+      const tier = o => (qm(o)>0 && qg(o)>0) ? 0 : qm(o)>0 ? 1 : qg(o)>0 ? 2 : 3;
+      const tx = tier(x), ty = tier(y);
+      if(tx!==ty) return tx-ty;
+      if(qm(x)!==qm(y)) return qm(y)-qm(x);   // tồn SP áp dụng nhiều -> ít
+      if(qg(x)!==qg(y)) return qg(y)-qg(x);   // tồn quà tặng nhiều -> ít
       return x.i-y.i;
     });
     // Tổng tồn (mỗi mã chỉ cộng 1 lần để không bị nhân đôi khi lặp ở nhiều dòng)
@@ -1154,6 +1170,42 @@ function renderCtkmTab(){
         <span class="chip ${sumMain<=0?'zero':''}">📦 Tồn SP áp dụng: <b>${sumMain}</b></span>
         ${hasGift?`<span class="chip gift ${sumGift<=0?'zero':''}">🎁 Tồn quà tặng: <b>${sumGift}</b></span>`:''}
       </div>` : '';
+    const noInvTxt = state.tonkho ? 'Không có dữ liệu tồn kho' : 'Chưa tải file Tồn kho';
+    const qtyOf = inv => inv ? (inv.soLuong||0) : -1;   // chưa có dữ liệu -> xuống cuối
+    const qtyHtmlOf = inv => inv
+      ? `<div class="qty ${inv.soLuong<=0?'zero':''}">${inv.soLuong} <span class="lbl">tồn kho</span>${inv.soLuongTreo>0?` · +${inv.soLuongTreo} treo`:''}</div>`
+      : `<div class="empty-col">${noInvTxt}</div>`;
+    // Cột SP áp dụng (mỗi mã 1 lần), sắp theo tồn nhiều -> ít
+    const prodMap = new Map();
+    details.forEach(x=>{
+      const k = x.d.maSP || x.d.maThamChieu || x.d.tenSP;
+      if(k && !prodMap.has(k)) prodMap.set(k, x);
+    });
+    const prodList = [...prodMap.values()].sort((a,b)=> (qtyOf(b.invMain)-qtyOf(a.invMain)) || (a.i-b.i));
+    // Cột quà tặng (mỗi mã 1 lần), sắp theo tồn nhiều -> ít — độc lập với cột SP
+    const giftMap = new Map();
+    details.forEach(x=>{
+      const k = x.d.giftMa || x.d.giftThamChieu || x.d.giftTen;
+      if(x.d.giftTen && k && !giftMap.has(k)) giftMap.set(k, x);
+    });
+    const giftList = [...giftMap.values()].sort((a,b)=> (qtyOf(b.invGift)-qtyOf(a.invGift)) || (a.i-b.i));
+    const prodColHtml = prodList.map(({d,invMain})=>{
+      const ref = (invMain && invMain.maThamChieu) || d.maThamChieu || "";
+      return `<div class="item">
+        <div class="p-name">${d.tenSP||"(không tên)"}</div>
+        <div class="p-code">${d.maSP?`Mã SP: ${d.maSP}`:''}${ref?`<br>Mã tham chiếu: ${ref}`:''}</div>
+        ${(d.giaSauGiam||d.tyLeGiam)?`<div class="p-code">Giảm ${d.tyLeGiam?Math.round(parseFloat(d.tyLeGiam)*100)+'%':''}${d.giaSauGiam?(' · Còn '+d.giaSauGiam+'đ'):''}</div>`:''}
+        ${qtyHtmlOf(invMain)}
+      </div>`;
+    }).join("");
+    const giftColHtml = giftList.length ? giftList.map(({d,invGift})=>{
+      const ref = (invGift && invGift.maThamChieu) || d.giftThamChieu || "";
+      return `<div class="item">
+        <div class="p-name">${d.giftTen}${d.tyLeTang?` (${Math.round(parseFloat(d.tyLeTang)*100)}%)`:''}</div>
+        <div class="p-code">${d.giftMa?`Mã SP: ${d.giftMa}`:''}${ref?`<br>Mã tham chiếu: ${ref}`:''}</div>
+        ${qtyHtmlOf(invGift)}
+      </div>`;
+    }).join("") : `<div class="item"><div class="empty-col">Không có quà tặng kèm</div></div>`;
     card.innerHTML = `
       <div class="tags">
         <span class="tag cat">${p.nganhHang||"—"}</span>
@@ -1166,34 +1218,12 @@ function renderCtkmTab(){
       <div class="name">${p.ten}</div>
       <div class="dates">📅 ${p.batDauStr} → ${p.ketThucStr} &nbsp;·&nbsp; ${p.loaiChot||""}</div>
       ${stockSumHtml}
-      <div class="toggle"><span class="chev">▾</span><span>${details.length?`Xem ${details.length} sản phẩm áp dụng`:'Xem chi tiết'}</span></div>
+      <div class="toggle"><span class="chev">▾</span><span>${details.length?`Xem ${prodList.length} sản phẩm áp dụng`:'Xem chi tiết'}</span></div>
       <div class="detail">
-        ${details.length? details.map(({d,invMain,invGift})=>{
-          // Ưu tiên mã tham chiếu tra được từ file Tồn kho (đáng tin hơn dữ liệu CTKM gốc,
-          // vì file CTKM nhiều khi để trống cột mã tham chiếu của SP áp dụng)
-          const maThamChieuReal = (invMain && invMain.maThamChieu) || d.maThamChieu || "";
-          const giftThamChieuReal = (invGift && invGift.maThamChieu) || d.giftThamChieu || "";
-          return `
-          <div class="row">
-            <div class="cols">
-              <div class="col">
-                <div class="col-lbl">📦 SP áp dụng</div>
-                <div class="p-name">${d.tenSP||"(không tên)"}</div>
-                <div class="p-code">${d.maSP?`Mã SP: ${d.maSP}`:''}${maThamChieuReal?`<br>Mã tham chiếu: ${maThamChieuReal}`:''}</div>
-                ${(d.giaSauGiam||d.tyLeGiam)?`<div class="p-code">Giảm ${d.tyLeGiam?Math.round(parseFloat(d.tyLeGiam)*100)+'%':''}${d.giaSauGiam?(' · Còn '+d.giaSauGiam+'đ'):''}</div>`:''}
-                ${invMain? `<div class="qty ${invMain.soLuong<=0?'zero':''}">${invMain.soLuong} <span class="lbl">tồn kho</span>${invMain.soLuongTreo>0?` · +${invMain.soLuongTreo} treo`:''}</div>` : `<div class="empty-col">${state.tonkho? 'Không có dữ liệu tồn kho':'Chưa tải file Tồn kho'}</div>`}
-              </div>
-              <div class="col gift-col">
-                <div class="col-lbl">🎁 Quà tặng</div>
-                ${d.giftTen? `
-                  <div class="p-name">${d.giftTen}${d.tyLeTang?` (${Math.round(parseFloat(d.tyLeTang)*100)}%)`:''}</div>
-                  <div class="p-code">${d.giftMa?`Mã SP: ${d.giftMa}`:''}${giftThamChieuReal?`<br>Mã tham chiếu: ${giftThamChieuReal}`:''}</div>
-                  ${invGift? `<div class="qty ${invGift.soLuong<=0?'zero':''}">${invGift.soLuong} <span class="lbl">tồn kho</span>${invGift.soLuongTreo>0?` · +${invGift.soLuongTreo} treo`:''}</div>` : `<div class="empty-col">${state.tonkho? 'Không có dữ liệu tồn kho':'Chưa tải file Tồn kho'}</div>`}
-                ` : `<div class="empty-col">Không có quà tặng kèm</div>`}
-              </div>
-            </div>
-          </div>`;
-        }).join("") : '<div class="row" style="color:var(--muted)">Không có dữ liệu sản phẩm chi tiết.</div>'}
+        ${details.length? `<div class="cols2">
+          <div class="colx"><div class="col-head">📦 SP áp dụng (${prodList.length})</div>${prodColHtml}</div>
+          <div class="colx gift"><div class="col-head">🎁 Quà tặng (${giftList.length})</div>${giftColHtml}</div>
+        </div>` : '<div class="row" style="color:var(--muted)">Không có dữ liệu sản phẩm chi tiết.</div>'}
         ${p.cachThucHien?`<div class="note"><b>Cách thực hiện:</b> ${p.cachThucHien}</div>`:''}
         ${p.ghiChu?`<div class="note"><b>Ghi chú:</b> ${p.ghiChu}</div>`:''}
       </div>
