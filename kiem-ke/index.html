@@ -321,9 +321,11 @@ table.preview tr.hdr-row td{background:var(--navy);color:#fff;font-weight:700;}
 
 /* ---------- Scanner overlay ---------- */
 #scannerOverlay{
-  position:fixed;inset:0;z-index:80;background:#050810;display:none;flex-direction:column;
+  position:fixed;inset:0;z-index:80;background:#050810;display:flex;flex-direction:column;
+  visibility:hidden;pointer-events:none;
 }
-#scannerOverlay.show{display:flex;}
+#scannerOverlay.show{visibility:visible;pointer-events:auto;}
+#scannerOverlay:not(.show) *{animation-play-state:paused !important;}
 .scan-topbar{
   flex:none;display:flex;align-items:center;justify-content:space-between;
   padding:calc(14px + var(--safe-top)) 16px 12px;position:relative;z-index:2;
@@ -1600,6 +1602,22 @@ function initNativeDetector(){
   }catch(e){}
 }
 
+// Calls cb once the (re)started video is delivering new frames (skips the stale frozen one).
+function waitFreshFrames(cb){
+  var v = scanVideo, done = false, n = 0, t0 = v.currentTime, started = Date.now();
+  function finish(){ if(done) return; done = true; cb(); }
+  if(v.requestVideoFrameCallback){
+    var onFrame = function(){ if(++n >= 3) finish(); else v.requestVideoFrameCallback(onFrame); };
+    v.requestVideoFrameCallback(onFrame);
+    setTimeout(finish, 1000);
+    return;
+  }
+  (function poll(){
+    if(v.currentTime > t0 + 0.2 || Date.now() - started > 1000) finish();
+    else setTimeout(poll, 50);
+  })();
+}
+
 function openScanner(){
   commitActiveQtyInput();
   unlockAudio();
@@ -1628,11 +1646,29 @@ function openScanner(){
 
   // Camera still warm from a scan a moment ago -> reuse the same stream: opens instantly.
   if(scanStream && scanTrack && scanTrack.readyState==="live"){
-    $("#scanStatus").textContent = "";
+    // The paused <video> still holds the LAST frame (with the old barcode). Hide it and do
+    // not decode anything until genuinely new frames are arriving, otherwise the app
+    // would "scan" the old picture again.
+    if(!scanVideo.paused && scanVideo.readyState >= 2){
+      // Video has been playing live in the background: nothing stale, start right away.
+      scanVideo.style.opacity = "1";
+      $("#scanStatus").textContent = "";
+      scannerOpening = false;
+      startScanLoop();
+      return;
+    }
+    // Rare case (browser paused the hidden video): wait for new frames instead.
+    scanVideo.style.opacity = "0";
+    $("#scanStatus").textContent = "Đang mở camera…";
     var pp = scanVideo.play();
     if(pp && pp.catch) pp.catch(function(){});
-    scannerOpening = false;
-    startScanLoop();
+    waitFreshFrames(function(){
+      if(!overlay.classList.contains("show")) return;
+      scanVideo.style.opacity = "1";
+      $("#scanStatus").textContent = "";
+      scannerOpening = false;
+      startScanLoop();
+    });
     return;
   }
 
@@ -1650,6 +1686,7 @@ function openScanner(){
     }
     scanStream = stream;
     scanTrack = stream.getVideoTracks()[0];
+    scanVideo.style.opacity = "1";
     scanVideo.muted = true;
     scanVideo.setAttribute("playsinline", "");
     scanVideo.srcObject = stream;
@@ -1702,7 +1739,7 @@ function startScanLoop(){
   var gen = scanGen;
   function tick(){
     if(!scanLoopRunning || gen!==scanGen || !scanStream) return;
-    if(scanVideo.readyState >= 2 && scanVideo.videoWidth && !scannerBusy){
+    if(scanVideo.readyState >= 2 && scanVideo.videoWidth && !scanVideo.paused && !scannerBusy){
       if(!scanCrop) scanCrop = computeGuideCrop(scanVideo);
       decodeFromCrop(scanCrop, function(){
         if(scanLoopRunning && gen===scanGen) scanTimer = setTimeout(tick, 50);
@@ -1791,7 +1828,7 @@ function closeScanner(){
     torchOn = false;
     $("#btnTorch").classList.remove("on");
   }
-  if(scanVideo){ try{ scanVideo.pause(); }catch(e){} }
+  // Do NOT pause the video: a paused <video> keeps its last frame (with the old barcode).
   // Keep the camera warm for a short while so the next scan opens instantly,
   // then release it to save battery.
   clearTimeout(scanIdleTimer);
