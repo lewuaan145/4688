@@ -54,7 +54,21 @@
   .upload-card.done{border-color:#bdeeda;background:#f6fefb;}
   .upload-card.done label.btn{background:var(--mint);}
 
-  .arrivals-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  [hidden]{display:none !important;}
+  .arrivals-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 11px;display:flex;flex-direction:column;gap:8px;transition:border-color .15s,background .15s;}
+  .arrivals-box.drag{border-color:var(--mint);background:#f6fefb;}
+  .arrivals-box label.arrivals-add{text-align:center;font-size:12.5px;font-weight:800;color:#fff;background:var(--mint);padding:12px 10px;border-radius:10px;cursor:pointer;}
+  .arrivals-box input[type=file]{display:none;}
+  .arrivals-sub{font-size:10.5px;color:var(--muted);line-height:1.5;}
+  .arrival-list{display:flex;flex-direction:column;gap:6px;}
+  .arrival-card{display:flex;align-items:center;gap:8px;background:#f6fefb;border:1px solid #bdeeda;border-radius:10px;padding:8px 10px;}
+  .arrival-card.err{background:#fff5f7;border-color:#ffc9d5;}
+  .arrival-card .ai{flex:1;min-width:0;}
+  .arrival-card .an{font-size:11.5px;font-weight:800;color:var(--ink);word-break:break-all;}
+  .arrival-card .am{font-size:10px;color:var(--muted);line-height:1.4;margin-top:2px;}
+  .arrival-card.err .am{color:var(--coral-dark);}
+  .arrival-card .ax{flex:none;width:30px;height:30px;border:0;border-radius:8px;background:rgba(21,34,56,.07);color:var(--ink-2);font-size:13px;font-weight:800;cursor:pointer;}
+  .arrivals-clear{align-self:flex-start;border:0;background:none;color:var(--coral-dark);font-size:11px;font-weight:700;padding:4px 2px;cursor:pointer;}
   .hint-text{font-size:11px;color:var(--muted);line-height:1.6;margin:6px 2px 10px;}
 
   .paste-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 13px;}
@@ -179,39 +193,13 @@
   </div>
 
   <div class="section-title">🚚 Hàng về trong tháng (giữa đầu &amp; cuối tháng)</div>
-  <div class="arrivals-grid">
-    <div class="upload-card" id="arrival1Card">
-      <div class="t">Đợt 1</div>
-      <div class="m" id="arrival1Meta">Chưa tải file</div>
-      <label class="btn">Chọn file<input type="file" id="arrival1File" accept=".xlsx,.xls"></label>
-    </div>
-    <div class="upload-card" id="arrival2Card">
-      <div class="t">Đợt 2</div>
-      <div class="m" id="arrival2Meta">Chưa tải file</div>
-      <label class="btn">Chọn file<input type="file" id="arrival2File" accept=".xlsx,.xls"></label>
-    </div>
-    <div class="upload-card" id="arrival3Card">
-      <div class="t">Đợt 3</div>
-      <div class="m" id="arrival3Meta">Chưa tải file</div>
-      <label class="btn">Chọn file<input type="file" id="arrival3File" accept=".xlsx,.xls"></label>
-    </div>
-    <div class="upload-card" id="arrival4Card">
-      <div class="t">Đợt 4</div>
-      <div class="m" id="arrival4Meta">Chưa tải file</div>
-      <label class="btn">Chọn file<input type="file" id="arrival4File" accept=".xlsx,.xls"></label>
-    </div>
-    <div class="upload-card" id="arrival5Card">
-      <div class="t">Đợt 5</div>
-      <div class="m" id="arrival5Meta">Chưa tải file</div>
-      <label class="btn">Chọn file<input type="file" id="arrival5File" accept=".xlsx,.xls"></label>
-    </div>
-    <div class="upload-card" id="arrival6Card">
-      <div class="t">Đợt 6</div>
-      <div class="m" id="arrival6Meta">Chưa tải file</div>
-      <label class="btn">Chọn file<input type="file" id="arrival6File" accept=".xlsx,.xls"></label>
-    </div>
+  <div class="arrivals-box" id="arrivalDrop">
+    <label class="arrivals-add">＋ Thêm file hàng về (chọn nhiều file một lượt)<input type="file" id="arrivalFiles" accept=".xlsx,.xls" multiple></label>
+    <div class="arrivals-sub" id="arrivalSummary">Chưa có file nào</div>
+    <div class="arrival-list" id="arrivalList"></div>
+    <button type="button" class="arrivals-clear" id="arrivalClearAll" hidden>Xoá hết đợt hàng về</button>
   </div>
-  <div class="hint-text">Mỗi file là 1 phiếu <b>"Chi tiết phiếu nhập"</b> xuất từ hệ thống (cột: Mã sản phẩm, Mã tham chiếu, Tên sản phẩm, SL đã nhập). Cần đủ đợt hàng về xảy ra trong khoảng từ ngày lấy tồn đầu đến ngày lấy tồn cuối.</div>
+  <div class="hint-text">Chọn nhiều file cùng lúc (hoặc kéo thả vào khung trên máy tính), chọn thêm lần sau sẽ được cộng vào danh sách. Mỗi file là 1 phiếu <b>"Chi tiết phiếu nhập"</b> xuất từ hệ thống (cột: Mã sản phẩm, Mã tham chiếu, Tên sản phẩm, SL đã nhập). Cần đủ đợt hàng về xảy ra trong khoảng từ ngày lấy tồn đầu đến ngày lấy tồn cuối.</div>
 
   <div class="section-title">🔜 Hàng sắp về (chưa nhập kho)</div>
   <div class="paste-box">
@@ -236,7 +224,8 @@
 const state = {
   stockStart: null,  // {rows, storeSet}
   stockEnd: null,    // {rows, storeSet}
-  arrivalFiles: {a1:null, a2:null, a3:null, a4:null, a5:null, a6:null},
+  arrivalList: [],     // [{id, fileName, savedAt, rows}]
+  arrivalErrors: [],   // [{name, msg}] (chỉ hiển thị, không lưu)
   arrivals: [],
   upcoming: [],
   selectedStore: "",
@@ -473,7 +462,8 @@ function parseUpcomingPaste(text){
 const CACHE_KEYS = {
   stockStart: "pt_stockStart_v1",
   stockEnd: "pt_stockEnd_v1",
-  arrival: (slot)=>"pt_arrival_"+slot+"_v1",
+  arrivals: "pt_arrivals_v2",
+  arrival: (slot)=>"pt_arrival_"+slot+"_v1", // kiểu cũ (6 đợt cố định) - chỉ để chuyển dữ liệu
   upcomingText: "pt_upcomingText_v1",
   store: "pt_selectedStore_v1"
 };
@@ -567,27 +557,110 @@ $("#stockEndFile").onchange = async (e)=>{
   }catch(err){ console.error(err); $("#stockEndMeta").textContent = "Lỗi: " + err.message; }
 };
 
-function wireArrivalSlot(slot, fileId, metaId, cardId){
-  $(fileId).onchange = async (e)=>{
-    const file = e.target.files[0]; if(!file) return;
-    $(metaId).textContent = "Đang xử lý...";
+/* ============ HÀNG VỀ: thêm nhiều file một lượt ============ */
+function escHtml(t){ return String(t).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtQty(n){ return (Math.round(n*100)/100).toLocaleString("vi-VN"); }
+function recomputeArrivals(){ state.arrivals = state.arrivalList.flatMap(f=>f.rows); }
+function saveArrivals(){
+  return saveCache(CACHE_KEYS.arrivals, { files: state.arrivalList.map(f=>({id:f.id, fileName:f.fileName, savedAt:f.savedAt, rows:f.rows})) });
+}
+function renderArrivalList(note){
+  const parts = [];
+  state.arrivalErrors.forEach((er,i)=>{
+    parts.push(`<div class="arrival-card err"><div class="ai"><div class="an">${escHtml(er.name)}</div><div class="am">⚠️ ${escHtml(er.msg)}</div></div><button type="button" class="ax" data-err="${i}" aria-label="Bỏ thông báo">✕</button></div>`);
+  });
+  state.arrivalList.forEach(f=>{
+    const tot = f.rows.reduce((s,r)=>s+r.sl,0);
+    parts.push(`<div class="arrival-card"><div class="ai"><div class="an">${escHtml(f.fileName)}</div><div class="am">${f.rows.length} SP · tổng SL ${fmtQty(tot)} · ${fmtSavedAt(f.savedAt)}</div></div><button type="button" class="ax" data-id="${escHtml(f.id)}" aria-label="Xoá file này">✕</button></div>`);
+  });
+  $("#arrivalList").innerHTML = parts.join("");
+  const n = state.arrivalList.length;
+  const totAll = state.arrivals.reduce((s,r)=>s+r.sl,0);
+  $("#arrivalSummary").textContent = (note ? note + " — " : "") +
+    (n ? `${n} file · ${state.arrivals.length} dòng · tổng SL ${fmtQty(totAll)}` : "Chưa có file nào");
+  $("#arrivalClearAll").hidden = (n===0);
+}
+async function addArrivalFiles(fileList){
+  const files = Array.from(fileList||[]).filter(f=>/\.(xlsx|xls)$/i.test(f.name));
+  if(!files.length) return;
+  state.arrivalErrors = [];
+  $("#arrivalSummary").textContent = `Đang xử lý ${files.length} file...`;
+  let added = 0, dup = 0;
+  for(const file of files){
+    const exists = state.arrivalList.some(f=>f.fileName.toLowerCase()===file.name.toLowerCase());
+    if(exists){
+      dup++;
+      state.arrivalErrors.push({name:file.name, msg:"Đã có file trùng tên nên bỏ qua (bấm ✕ ở file cũ nếu muốn nạp lại)."});
+      continue;
+    }
     try{
       const data = await parseArrivalFile(file);
-      state.arrivalFiles[slot] = data;
-      state.arrivals = Object.values(state.arrivalFiles).filter(Boolean).flatMap(d=>d.rows);
-      $(metaId).textContent = `${file.name} · ${data.rows.length} SP`;
-      $(cardId).classList.add("done");
-      saveCache(CACHE_KEYS.arrival(slot), {fileName:file.name, savedAt:Date.now(), rows:data.rows});
-      render();
-    }catch(err){ console.error(err); $(metaId).textContent = "Lỗi: " + err.message; }
-  };
+      state.arrivalList.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), fileName:file.name, savedAt:Date.now(), rows:data.rows });
+      added++;
+    }catch(err){
+      console.error(err);
+      state.arrivalErrors.push({name:file.name, msg: err.message || "Không đọc được file."});
+    }
+  }
+  recomputeArrivals();
+  if(added) await saveArrivals();
+  const bad = state.arrivalErrors.length - dup;
+  renderArrivalList(`Đã thêm ${added}/${files.length} file` + (dup?` · ${dup} trùng`:"") + (bad>0?` · ${bad} lỗi`:""));
+  render();
 }
-wireArrivalSlot("a1","#arrival1File","#arrival1Meta","#arrival1Card");
-wireArrivalSlot("a2","#arrival2File","#arrival2Meta","#arrival2Card");
-wireArrivalSlot("a3","#arrival3File","#arrival3Meta","#arrival3Card");
-wireArrivalSlot("a4","#arrival4File","#arrival4Meta","#arrival4Card");
-wireArrivalSlot("a5","#arrival5File","#arrival5Meta","#arrival5Card");
-wireArrivalSlot("a6","#arrival6File","#arrival6Meta","#arrival6Card");
+$("#arrivalFiles").onchange = (e)=>{
+  const picked = Array.from(e.target.files||[]);
+  e.target.value = "";   // cho phép chọn lại cùng file / chọn thêm lần sau
+  addArrivalFiles(picked);
+};
+$("#arrivalList").onclick = async (e)=>{
+  const btn = e.target.closest(".ax"); if(!btn) return;
+  if(btn.dataset.err!==undefined){
+    state.arrivalErrors.splice(parseInt(btn.dataset.err,10),1);
+    renderArrivalList();
+    return;
+  }
+  state.arrivalList = state.arrivalList.filter(f=>f.id!==btn.dataset.id);
+  recomputeArrivals();
+  await saveArrivals();
+  renderArrivalList();
+  render();
+};
+$("#arrivalClearAll").onclick = async ()=>{
+  if(!confirm("Xoá toàn bộ file hàng về đã nạp?")) return;
+  state.arrivalList = []; state.arrivalErrors = [];
+  recomputeArrivals();
+  await saveArrivals();
+  renderArrivalList();
+  render();
+};
+(function wireArrivalDrop(){
+  const box = $("#arrivalDrop");
+  ["dragenter","dragover"].forEach(ev=>box.addEventListener(ev, e=>{ e.preventDefault(); box.classList.add("drag"); }));
+  ["dragleave","drop"].forEach(ev=>box.addEventListener(ev, e=>{ e.preventDefault(); box.classList.remove("drag"); }));
+  box.addEventListener("drop", e=>{ addArrivalFiles(e.dataTransfer && e.dataTransfer.files); });
+})();
+// Khôi phục từ bộ nhớ; nếu chỉ có dữ liệu kiểu cũ (6 đợt cố định) thì tự chuyển sang danh sách mới.
+async function initArrivalsFromCache(){
+  const c = await loadCache(CACHE_KEYS.arrivals);
+  if(c && Array.isArray(c.files)){
+    state.arrivalList = c.files;
+  }else{
+    const legacy = [];
+    for(const slot of ["a1","a2","a3","a4","a5","a6"]){
+      const old = await loadCache(CACHE_KEYS.arrival(slot));
+      if(old && Array.isArray(old.rows)) legacy.push({ id: "old-"+slot, fileName: old.fileName || ("Đợt "+slot.slice(1)), savedAt: old.savedAt || Date.now(), rows: old.rows });
+    }
+    if(legacy.length){
+      state.arrivalList = legacy;
+      if(await saveArrivals()){
+        await Promise.all(["a1","a2","a3","a4","a5","a6"].map(sl=>deleteCache(CACHE_KEYS.arrival(sl))));
+      }
+    }
+  }
+  recomputeArrivals();
+  renderArrivalList();
+}
 
 function applyUpcomingInput(){
   const { valid, skipped } = parseUpcomingPaste($("#upcomingPaste").value);
@@ -612,7 +685,7 @@ $("#storeSelect").onchange = (e)=>{
 
 $("#clearCacheBtn").onclick = async ()=>{
   if(!confirm("Xoá toàn bộ file & dữ liệu đã lưu (tồn đầu, tồn cuối, các đợt hàng về, hàng sắp về)? Không thể hoàn tác.")) return;
-  const keys = [CACHE_KEYS.stockStart, CACHE_KEYS.stockEnd, CACHE_KEYS.arrival("a1"), CACHE_KEYS.arrival("a2"), CACHE_KEYS.arrival("a3"), CACHE_KEYS.arrival("a4"), CACHE_KEYS.arrival("a5"), CACHE_KEYS.arrival("a6"), CACHE_KEYS.upcomingText, CACHE_KEYS.store];
+  const keys = [CACHE_KEYS.stockStart, CACHE_KEYS.stockEnd, CACHE_KEYS.arrivals, CACHE_KEYS.arrival("a1"), CACHE_KEYS.arrival("a2"), CACHE_KEYS.arrival("a3"), CACHE_KEYS.arrival("a4"), CACHE_KEYS.arrival("a5"), CACHE_KEYS.arrival("a6"), CACHE_KEYS.upcomingText, CACHE_KEYS.store];
   await Promise.all(keys.map(k=>deleteCache(k)));
   location.reload();
 };
@@ -886,16 +959,7 @@ function exportPhanTich(){
     $("#stockEndMeta").textContent = `${se.fileName} · ${se.rows.length} dòng · đã lưu ${fmtSavedAt(se.savedAt)}`;
     $("#stockEndCard").classList.add("done");
   }
-  for(let i=0;i<6;i++){
-    const slot = ["a1","a2","a3","a4","a5","a6"][i];
-    const c = await loadCache(CACHE_KEYS.arrival(slot));
-    if(c){
-      state.arrivalFiles[slot] = { rows: c.rows };
-      $(`#arrival${i+1}Meta`).textContent = `${c.fileName} · ${c.rows.length} SP · đã lưu ${fmtSavedAt(c.savedAt)}`;
-      $(`#arrival${i+1}Card`).classList.add("done");
-    }
-  }
-  state.arrivals = Object.values(state.arrivalFiles).filter(Boolean).flatMap(d=>d.rows);
+  await initArrivalsFromCache();
 
   const storeCache = await loadCache(CACHE_KEYS.store);
   if(storeCache && storeCache.store) state.selectedStore = storeCache.store;
