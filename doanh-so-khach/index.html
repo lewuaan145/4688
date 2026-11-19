@@ -217,12 +217,12 @@ function cycleOf(dt){
 
 // ----- Phiếu xuất (khách) -----
 function findCustomerHeader(matrix){
-  const want = {code:'ma phieu', date:'ngay xuat', name:'ten khach', phone:'so dien thoai'};
+  const want = {code:'ma phieu', date:'ngay xuat', name:'ten khach', phone:'so dien thoai', amount:'tong tien'};
   const lim = Math.min(matrix.length, 30);
   for (let i = 0; i < lim; i++){
     const cells = (matrix[i] || []).map(strip);
     const find = k => cells.findIndex(c => c.includes(want[k]));
-    const idx = {code:find('code'), date:find('date'), name:find('name'), phone:find('phone')};
+    const idx = {code:find('code'), date:find('date'), name:find('name'), phone:find('phone'), amount:find('amount')};
     if (idx.date >= 0 && (idx.phone >= 0 || idx.name >= 0)) return {row:i, idx};
   }
   return null;
@@ -247,7 +247,7 @@ function parseCustomerMatrix(matrix, srcName){
     const name = String(cell(r,'name') ?? '').trim().replace(/\s+/g,' ');
     const phone = normPhone(cell(r,'phone'));
     const le = isLe(name, phone);
-    const rec = {key, dt, le, src:srcName, pkey: le ? '' : (phone || 'n:' + strip(name))};
+    const rec = {key, dt, le, src:srcName, amount: parseAmount(cell(r,'amount')), pkey: le ? '' : (phone || 'n:' + strip(name))};
     local.set(key, rec);
     out.push(rec);
   }
@@ -314,15 +314,27 @@ function buildCustomerCycles(records){
     let C = cycles.get(c.key);
     if (!C){
       C = {key:c.key, cy:c.cy, cm:c.cm, startDn:c.startDn, endDn:c.endDn,
-           days: Array.from({length:32}, () => ({named:new Set(), le:0, slips:0})),
-           named:new Set(), le:0, slips:0, minDn:Infinity, maxDn:-Infinity};
+           days: Array.from({length:32}, () => ({named:new Set(), le:0, slips:0, sum:0})),
+           named:new Set(), le:0, slips:0, sum:0, leSum:0,
+           orderMap:new Map(), custDays:new Map(),
+           minDn:Infinity, maxDn:-Infinity};
       cycles.set(c.key, C);
     }
     const dn = dayNum(r.dt), k = dn - C.startDn + 1;
     if (k < 1 || k > 31) continue;
     const D = C.days[k];
-    if (r.le){ D.le++; C.le++; } else { D.named.add(r.pkey); C.named.add(r.pkey); }
     D.slips++; C.slips++;
+    if (r.le){
+      D.le++; C.le++; C.leSum += r.amount;
+    } else {
+      D.named.add(r.pkey); C.named.add(r.pkey);
+      D.sum += r.amount; C.sum += r.amount;
+      // đơn của một khách trong một ngày = cộng dồn các phiếu cùng khách, cùng ngày
+      const ok = k + '|' + r.pkey;
+      C.orderMap.set(ok, (C.orderMap.get(ok) || 0) + r.amount);
+      if (!C.custDays.has(r.pkey)) C.custDays.set(r.pkey, new Set());
+      C.custDays.get(r.pkey).add(k);
+    }
     C.minDn = Math.min(C.minDn, dn); C.maxDn = Math.max(C.maxDn, dn);
   }
   return cycles;
@@ -335,11 +347,26 @@ function customerStats(C){
     visits += D.named.size + D.le;
     if (D.slips > 0) active++;
   }
+  // Giá trị đơn
+  const orders = C.orderMap.size;
+  const b = [0, 0, 0];
+  for (const v of C.orderMap.values()){
+    if (v < 100000) b[0]++;
+    else if (v < 300000) b[1]++;
+    else b[2]++;
+  }
+  let repeat = 0;
+  for (const set of C.custDays.values()) if (set.size >= 2) repeat++;
   return {
     key:C.key, cy:C.cy, cm:C.cm, label:`Tháng ${C.cm}/${C.cy}`,
     startDn:C.startDn, endDn:C.endDn, len:C.endDn - C.startDn + 1,
     from:C.minDn, to:C.maxDn, partial: C.maxDn < C.endDn,
-    visits, unique:C.named.size, le:C.le, slips:C.slips, active, days:C.days
+    visits, unique:C.named.size, le:C.le, slips:C.slips, active, days:C.days,
+    orders, aov: orders ? C.sum / orders : 0,
+    aovLe: C.le ? C.leSum / C.le : 0,
+    lePct: C.slips ? C.le / C.slips : 0,
+    repeatPct: C.named.size ? repeat / C.named.size : 0,
+    bk: orders ? b.map(x => x / orders) : [0,0,0]
   };
 }
 
@@ -349,6 +376,14 @@ function custDayVal(s, k){
   if (s.startDn + k - 1 > s.to) return null;
   const D = s.days[k];
   return D.named.size + D.le;
+}
+
+// Giá trị đơn trung bình của một ngày (khách có số điện thoại); null nếu chưa có dữ liệu hoặc không có đơn
+function custDayAov(s, k){
+  if (k < 1 || k > s.len) return undefined;
+  if (s.startDn + k - 1 > s.to) return null;
+  const D = s.days[k], n = D.named.size;
+  return n ? D.sum / n : null;
 }
 
 function buildSalesCycles(recs, storeId){
@@ -531,6 +566,15 @@ function panelHTML(p){
     </div>
     <div class="tablewrap"><table id="sales-cats"></table></div>
   </section>` : '';
+  const valueCard = isSales ? '' : `
+  <section class="card">
+    <div class="head">
+      <h2>Giá trị đơn và chất lượng khách</h2>
+      <p class="note" id="customers-valnote"></p>
+    </div>
+    <div class="tablewrap"><table id="customers-val"></table></div>
+    <div class="chart h240" style="margin-top:16px"><canvas id="customers-aov"></canvas></div>
+  </section>`;
   return `
   <div class="kpis" id="${p}-kpis"></div>
   <section class="card">
@@ -562,7 +606,7 @@ function panelHTML(p){
     </div>
     <div class="chart h320"><canvas id="${p}-line"></canvas></div>
     <div class="tablewrap"><table id="${p}-daily"></table></div>
-  </section>${catsCard}`;
+  </section>${catsCard}${valueCard}`;
 }
 $('panel-sales').innerHTML = panelHTML('sales');
 $('panel-customers').innerHTML = panelHTML('customers');
@@ -620,10 +664,45 @@ function renderKpis(p){
       {lead:true, l:`Lượt khách ${cur.label}`, v:fmt(cur.visits), d:delta(cur.visits, prev && prev.visits) + partial},
       {l:'Khách duy nhất', v:fmt(cur.unique), d:'Một người được tính 1 lần trong chu kỳ'},
       {l:'Khách lẻ (lượt)', v:fmt(cur.le), d:`${fmt(cur.slips)} phiếu xuất`},
-      {l:'Ngày có khách', v:fmt(cur.active), d:`Trên ${cur.len} ngày của chu kỳ`}
+      {l:'Ngày có khách', v:fmt(cur.active), d:`Trên ${cur.len} ngày của chu kỳ`},
+      {l:'Giá trị TB / đơn', v:fmt(cur.aov)+' đ', d:`${fmt(cur.orders)} đơn (khách-ngày)`}
     ];
   }
   el.innerHTML = cards.map(c => `<div class="kpi ${c.lead?'lead':''}"><div class="l">${c.l}</div><div class="v">${c.v}</div><div class="d">${c.d}</div></div>`).join('');
+}
+
+function renderValue(){
+  const tbl = $('customers-val');
+  if (!tbl) return;
+  const S = store.cust, sel = store.sel.customers;
+  if (!S.length){
+    tbl.innerHTML = ''; $('customers-valnote').textContent = 'Chưa có dữ liệu phiếu xuất.';
+    mkChart('customers-aov', null); return;
+  }
+  $('customers-valnote').textContent = 'Đơn = tổng các phiếu của một khách trong một ngày. Giá trị TB / đơn tính trên khách có số điện thoại. Khách quay lại là khách mua từ 2 ngày trở lên trong chu kỳ. Dấu * là tháng chưa đủ chu kỳ.';
+  tbl.innerHTML = '<thead><tr><th>Tháng</th><th>Số đơn</th><th>Giá trị TB / đơn (đ)</th><th>TB / phiếu lẻ (đ)</th><th>Tỷ lệ phiếu lẻ</th><th>Khách quay lại</th><th>Đơn dưới 100k</th><th>100k – 300k</th><th>Đơn từ 300k</th></tr></thead><tbody>' +
+    S.map(s => `<tr><td><span class="dot" style="background:${colorOf('customers', s)}"></span>${labelOf(s)}</td>
+      <td>${fmt(s.orders)}</td><td><b>${fmt(s.aov)}</b></td><td>${fmt(s.aovLe)}</td>
+      <td>${pct(s.lePct)}</td><td>${pct(s.repeatPct)}</td>
+      <td>${pct(s.bk[0])}</td><td>${pct(s.bk[1])}</td><td>${pct(s.bk[2])}</td></tr>`).join('') + '</tbody>';
+  const selected = S.filter(s => sel.has(s.key));
+  if (!selected.length){ mkChart('customers-aov', null); return; }
+  mkChart('customers-aov', {
+    type:'line',
+    data:{
+      labels:Array.from({length:31},(_,i)=>String(i+1)),
+      datasets:selected.map(s => ({
+        label:labelOf(s),
+        data:Array.from({length:31},(_,i)=>custDayAov(s,i+1) ?? null),
+        borderColor:colorOf('customers', s), backgroundColor:colorOf('customers', s),
+        tension:0.25, pointRadius:1.5, borderWidth:2, spanGaps:false
+      }))
+    },
+    options:chartOpts({scales:{
+      y:{beginAtZero:true, ticks:{callback:compact}, title:{display:true, text:'Giá trị TB / đơn (đ)'}},
+      x:{title:{display:true, text:'Ngày thứ trong chu kỳ (1 = ngày 20)'}}
+    }})
+  });
 }
 
 function renderPanel(p){
@@ -631,6 +710,7 @@ function renderPanel(p){
   const isSales = p === 'sales';
   $(p+'-cum').checked = store.cum[p];
   renderKpis(p);
+  if (p === 'customers') renderValue();
 
   if (!S.length){
     $(p+'-note').textContent = isSales
