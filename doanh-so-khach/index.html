@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chu kỳ tháng: doanh số và khách</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --sky:#66CCFF; --sky-deep:#3fb4f0; --sky-soft:#e9f8ff; --sky-line:#cdeeff;
+  --navy:#0c3b57; --ink:#0b2433; --ink2:#4a6170; --mute:#8aa0ac;
+  --paper:#f3f8fb; --card:#ffffff; --rule:#dbe8f0; --bad:#c83a3a; --good:#0f8a6b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:"Be Vietnam Pro",Arial,Helvetica,sans-serif;background:var(--paper);color:var(--ink);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+/* Dải đầu trang */
+.band{background:var(--sky);color:var(--navy);padding:26px 0 0}
+.band-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+h1{margin:0;font-size:30px;font-weight:700;letter-spacing:-0.015em;color:var(--navy)}
+.lede{margin:8px 0 0;color:var(--navy);opacity:.85;font-size:14px;line-height:1.65;max-width:72ch}
+.owner{display:flex;align-items:center;justify-content:center;background:var(--navy);color:#fff;border-radius:12px;padding:10px 18px;min-width:96px}
+.owner small{font-size:11px;opacity:.75;letter-spacing:.02em}
+.owner strong{font-size:22px;font-weight:700;letter-spacing:.06em;margin-top:2px}
+nav.tabs{display:inline-flex;gap:4px;margin-top:22px;background:rgba(12,59,87,.12);border-radius:10px;padding:4px}
+nav.tabs button{background:transparent;border:0;border-radius:7px;padding:9px 18px;font:inherit;font-size:15px;font-weight:600;color:var(--navy);cursor:pointer;transition:background .15s}
+nav.tabs button:hover{background:rgba(255,255,255,.35)}
+nav.tabs button[aria-selected="true"]{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(12,59,87,.18)}
+/* Khung nội dung */
+main{padding:22px 0 40px;display:grid;gap:18px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:20px 22px;box-shadow:0 1px 2px rgba(12,59,87,.04)}
+.card h2{font-size:17px;font-weight:700;margin:0;color:var(--navy)}
+.head{display:grid;gap:10px;margin-bottom:14px}
+.note{margin:0;color:var(--ink2);font-size:13px;line-height:1.6}
+/* Chỉ số nổi bật */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.kpi{background:#fff;border:1px solid var(--rule);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--sky)}
+.kpi.lead{background:var(--navy);border-color:var(--navy);color:#fff}
+.kpi.lead::before{background:var(--sky)}
+.kpi .l{font-size:12px;color:var(--ink2)}
+.kpi.lead .l{color:#bfe9ff}
+.kpi .v{font-size:26px;font-weight:700;margin-top:6px;letter-spacing:-0.01em;color:var(--navy)}
+.kpi.lead .v{color:#fff}
+.kpi .d{font-size:12px;margin-top:6px;color:var(--ink2)}
+.kpi .d b{font-weight:700}
+.kpi .d .up{color:var(--good)} .kpi .d .down{color:var(--bad)}
+.kpi.lead .d{color:#cdeeff}
+.kpi.lead .d .up{color:#9cf0d2} .kpi.lead .d .down{color:#ffb3a8}
+/* Dropzone */
+.drop{border:1.5px dashed var(--sky-deep);border-radius:10px;padding:24px;text-align:center;cursor:pointer;background:var(--sky-soft);transition:background .15s,border-color .15s}
+.drop:hover{background:#dff3ff}
+.drop.over{border-style:solid;background:#d4efff}
+.drop b{color:var(--navy)}
+.drop small{color:var(--ink2);display:block;margin-top:4px}
+.files{margin-top:12px;font-size:13px;color:var(--ink2);line-height:1.8}
+.err{color:var(--bad)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.between{justify-content:space-between}
+button,select{font:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid var(--rule);background:#fff;color:var(--navy);cursor:pointer;transition:all .15s}
+button:hover,select:hover{border-color:var(--sky-deep);background:var(--sky-soft)}
+button:focus-visible,select:focus-visible,input:focus-visible,nav.tabs button:focus-visible{outline:3px solid rgba(102,204,255,.7);outline-offset:2px}
+button.primary{background:var(--sky);border-color:var(--sky);font-weight:600}
+button.primary:hover{background:var(--sky-deep);border-color:var(--sky-deep);color:#fff}
+label.check{font-size:13px;display:flex;gap:6px;align-items:center;color:var(--ink2)}
+label.field{font-size:13px;color:var(--ink2);display:flex;gap:8px;align-items:center}
+/* Chip chọn tháng */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font-size:13px;background:#fff;color:var(--navy);border:1px solid var(--rule)}
+.chip i{width:9px;height:9px;border-radius:50%;display:inline-block;opacity:.35}
+.chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.chip.on i{opacity:1;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.chip.ghost{border-style:dashed;color:var(--ink2);background:transparent}
+.chart{position:relative}
+.h240{height:250px}.h320{height:330px}
+.tablewrap{max-height:460px;overflow:auto;border:1px solid var(--rule);border-radius:10px;margin-top:14px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px 12px;border-bottom:1px solid #edf3f7;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--navy);font-weight:600;background:var(--sky-soft);position:sticky;top:0;font-size:12px}
+tbody tr:hover td{background:#f7fcff}
+tr.total td{font-weight:700;border-top:2px solid var(--navy);background:#fff}
+.dim{color:var(--mute)}
+.pos{color:var(--good);font-weight:600}.neg{color:var(--bad);font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:8px;vertical-align:middle}
+.tag{font-size:11px;color:#7a5200;background:#fff1cc;padding:2px 7px;border-radius:999px;margin-left:8px;font-weight:600}
+/* Lịch nhiệt */
+.heatwrap{overflow-x:auto;padding-bottom:4px}
+.heat{display:grid;gap:4px;min-width:max-content}
+.hrow{display:grid;grid-template-columns:150px repeat(31,24px);gap:4px;align-items:center}
+.hlab{font-size:12px;color:var(--navy);white-space:nowrap;padding-right:10px;font-weight:600}
+.hday{font-size:10px;color:var(--mute);text-align:center}
+.hc{height:24px;border-radius:4px;background:#f2f7fa;transition:transform .1s}
+.hc:not(.off):not(.nodata):hover{transform:scale(1.15)}
+.hc.nodata{background:repeating-linear-gradient(135deg,#eef4f8 0 3px,#fbfdfe 3px 6px)}
+.hc.off{background:transparent}
+.legend{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2)}
+.legend span.bar{width:120px;height:8px;border-radius:999px;background:linear-gradient(90deg,#eef9ff,#66ccff,#0c3b57)}
+/* Chân trang */
+.foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--ink2);font-size:12px;padding:0 0 32px}
+.foot b{color:var(--navy)}
+@media (max-width:640px){
+  .wrap{padding:0 14px}
+  h1{font-size:24px}
+  .hrow{grid-template-columns:110px repeat(31,22px)}
+  .kpi .v{font-size:22px}
+}
+</style>
+</head>
+<body>
+<header class="band">
+  <div class="wrap">
+    <div class="band-top">
+      <div>
+        <h1>Chu kỳ tháng</h1>
+        <p class="lede">
+          Tháng M chạy từ ngày 20 tháng M-1 đến hết ngày 19 tháng M. Tab Doanh số đọc file doanh số theo ngày và cửa hàng.
+          Tab Đếm khách đọc file phiếu xuất. Tải nhiều file cùng lúc, công cụ tự nhận loại file.
+        </p>
+      </div>
+      <div class="owner" aria-label="4688">
+        <strong>4688</strong>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="sales" aria-selected="true">Doanh số</button>
+      <button role="tab" data-tab="customers" aria-selected="false">Đếm khách</button>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+  <section class="card">
+    <div class="head"><h2>Dữ liệu</h2></div>
+    <div id="drop" class="drop">
+      <div><b>Kéo thả nhiều file .xlsx / .csv vào đây</b> hoặc bấm để chọn</div>
+      <small>File doanh số và file phiếu xuất có thể tải chung. Dữ liệu trùng (cùng cửa hàng và ngày, hoặc cùng mã phiếu) chỉ tính một lần.</small>
+    </div>
+    <input id="fileInput" type="file" multiple accept=".xlsx,.xls,.csv" hidden>
+    <div class="row" style="margin-top:12px"><button id="clearBtn">Xóa toàn bộ dữ liệu</button></div>
+    <div id="fileList" class="files"></div>
+  </section>
+
+  <div id="panel-sales" class="panel"></div>
+  <div id="panel-customers" class="panel" hidden></div>
+</main>
+<footer class="foot">
+  <span>Dữ liệu chỉ xử lý trên trình duyệt của bạn, không gửi đi đâu.</span>
+  <span><b>4688</b></span>
+</footer>
+</div>
+
+<script>
+/*CORE_START*/
+// ===== Logic tính toán (không phụ thuộc DOM) =====
+const LE_PHONES = new Set(['0123456789']);   // số giả dùng cho khách lẻ
+const LE_NAME_RE = /^khach le\b/;            // tên bắt đầu bằng "Khách lẻ"
+
+function strip(s){
+  return String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().replace(/\s+/g,' ').trim();
+}
+function normPhone(v){
+  let d = String(v ?? '').replace(/\D/g,'');
+  if (d.length === 11 && d.startsWith('84')) d = '0' + d.slice(2);
+  if (d.length === 9) d = '0' + d;
+  return d;
+}
+function isLe(name, phone){
+  if (LE_NAME_RE.test(strip(name))) return true;
+  if (!phone) return strip(name) === '';
+  return LE_PHONES.has(phone);
+}
+function parseAmount(v){
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  const n = Number(String(v ?? '').replace(/[^\d-]/g,''));
+  return isFinite(n) ? n : 0;
+}
+function parseDate(v){
+  if (v instanceof Date){
+    if (isNaN(v)) return null;
+    // SheetJS tạo ngày ở nửa đêm UTC: cộng 12 giờ rồi lấy ngày địa phương để không bị lùi một ngày ở múi giờ phía sau UTC
+    const t = new Date(v.getTime() + 12*3600*1000);
+    return {y:t.getFullYear(), m:t.getMonth()+1, d:t.getDate()};
+  }
+  if (typeof v === 'number'){
+    if (v < 20000 || v > 80000) return null;
+    const t = new Date(Math.round((v - 25569) * 86400000));
+    return {y:t.getUTCFullYear(), m:t.getUTCMonth()+1, d:t.getUTCDate()};
+  }
+  const s = String(v ?? '').trim();
+  let m = s.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+  if (m) return {y:+m[3], m:+m[2], d:+m[1]};
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return {y:+m[1], m:+m[2], d:+m[3]};
+  return null;
+}
+const dayNum = dt => Date.UTC(dt.y, dt.m-1, dt.d) / 86400000;
+const fromDayNum = n => { const t = new Date(n*86400000); return {y:t.getUTCFullYear(), m:t.getUTCMonth()+1, d:t.getUTCDate()}; };
+
+function cycleOf(dt){
+  let cy = dt.y, cm = dt.m;
+  if (dt.d >= 20){ cm++; if (cm > 12){ cm = 1; cy++; } }
+  const sy = cm === 1 ? cy-1 : cy;
+  const sm = cm === 1 ? 12 : cm-1;
+  return {
+    key: cy + '-' + String(cm).padStart(2,'0'), cy, cm,
+    startDn: dayNum({y:sy, m:sm, d:20}),
+    endDn: dayNum({y:cy, m:cm, d:19})
+  };
+}
+
+// ----- Phiếu xuất (khách) -----
+function findCustomerHeader(matrix){
+  const want = {code:'ma phieu', date:'ngay xuat', name:'ten khach', phone:'so dien thoai'};
+  const lim = Math.min(matrix.length, 30);
+  for (let i = 0; i < lim; i++){
+    const cells = (matrix[i] || []).map(strip);
+    const find = k => cells.findIndex(c => c.includes(want[k]));
+    const idx = {code:find('code'), date:find('date'), name:find('name'), phone:find('phone')};
+    if (idx.date >= 0 && (idx.phone >= 0 || idx.name >= 0)) return {row:i, idx};
+  }
+  return null;
+}
+
+function parseCustomerMatrix(matrix, srcName){
+  const h = findCustomerHeader(matrix);
+  if (!h) return {error:'Không phải file phiếu xuất'};
+  const out = [], local = new Map(), seen = {};
+  let skipped = 0;
+  const cell = (r,k) => h.idx[k] >= 0 ? r[h.idx[k]] : '';
+  for (let i = h.row+1; i < matrix.length; i++){
+    const r = matrix[i] || [];
+    if (!r.some(v => String(v ?? '').trim() !== '')) continue;
+    const dt = parseDate(cell(r,'date'));
+    if (!dt){ skipped++; continue; }
+    const code = String(cell(r,'code') ?? '').trim();
+    const base = code || 'row:' + JSON.stringify(r);
+    seen[base] = (seen[base] || 0) + 1;
+    const key = code || base + '#' + seen[base];
+    if (local.has(key)) continue;
+    const name = String(cell(r,'name') ?? '').trim().replace(/\s+/g,' ');
+    const phone = normPhone(cell(r,'phone'));
+    const le = isLe(name, phone);
+    const rec = {key, dt, le, src:srcName, pkey: le ? '' : (phone || 'n:' + strip(name))};
+    local.set(key, rec);
+    out.push(rec);
+  }
+  return {error:null, records:out, skipped};
+}
+
+// ----- Doanh số theo ngày và cửa hàng -----
+function parseSalesMatrix(matrix, srcName){
+  const lim = Math.min(matrix.length, 30);
+  let h = null;
+  for (let i = 0; i < lim; i++){
+    const raw = (matrix[i] || []).map(strip);
+    const dIdx = raw.findIndex(c => c === 'ngay');
+    const tIdx = raw.findIndex(c => c === 'tong doanh so');
+    if (dIdx >= 0 && tIdx >= 0){
+      h = {row:i, dIdx, tIdx,
+           codeIdx: raw.findIndex(c => c === 'ma st'),
+           nameIdx: raw.findIndex(c => c === 'ten st'),
+           lntIdx:  raw.findIndex(c => c === 'tong lnt'),
+           cats: []};
+      (matrix[i] || []).forEach((v,j) => {
+        const mm = String(v ?? '').trim().match(/^(Offline|Online)\s+(.+)$/i);
+        if (mm) h.cats.push({j, ch: mm[1].toLowerCase() === 'offline' ? 'off' : 'on', name: mm[2].trim()});
+      });
+      break;
+    }
+  }
+  if (!h) return {error:'Không phải file doanh số'};
+  const out = [], local = new Map();
+  let skipped = 0;
+  for (let i = h.row+1; i < matrix.length; i++){
+    const r = matrix[i] || [];
+    if (!r.some(v => String(v ?? '').trim() !== '')) continue;
+    const dt = parseDate(r[h.dIdx]);
+    if (!dt){ skipped++; continue; }
+    const code = h.codeIdx >= 0 ? String(r[h.codeIdx] ?? '').trim() : '';
+    const sname = h.nameIdx >= 0 ? String(r[h.nameIdx] ?? '').trim() : '';
+    const store = code || sname || 'ST';
+    const cats = {};
+    let off = 0, on = 0;
+    for (const c of h.cats){
+      const v = parseAmount(r[c.j]);
+      const e = cats[c.name] || (cats[c.name] = {off:0, on:0});
+      e[c.ch] += v;
+      if (c.ch === 'off') off += v; else on += v;
+    }
+    const key = store + '|' + dayNum(dt);
+    const rec = {key, store, storeName: sname || store, dt,
+                 total: parseAmount(r[h.tIdx]),
+                 lnt: h.lntIdx >= 0 ? parseAmount(r[h.lntIdx]) : 0,
+                 off, on, cats};
+    if (local.has(key)) continue;
+    local.set(key, rec);
+    out.push(rec);
+  }
+  return {error:null, records:out, skipped};
+}
+
+// ----- Gom theo chu kỳ -----
+function buildCustomerCycles(records){
+  const cycles = new Map();
+  for (const r of records){
+    const c = cycleOf(r.dt);
+    let C = cycles.get(c.key);
+    if (!C){
+      C = {key:c.key, cy:c.cy, cm:c.cm, startDn:c.startDn, endDn:c.endDn,
+           days: Array.from({length:32}, () => ({named:new Set(), le:0, slips:0})),
+           named:new Set(), le:0, slips:0, minDn:Infinity, maxDn:-Infinity};
+      cycles.set(c.key, C);
+    }
+    const dn = dayNum(r.dt), k = dn - C.startDn + 1;
+    if (k < 1 || k > 31) continue;
+    const D = C.days[k];
+    if (r.le){ D.le++; C.le++; } else { D.named.add(r.pkey); C.named.add(r.pkey); }
+    D.slips++; C.slips++;
+    C.minDn = Math.min(C.minDn, dn); C.maxDn = Math.max(C.maxDn, dn);
+  }
+  return cycles;
+}
+
+function customerStats(C){
+  let visits = 0, active = 0;
+  for (let k = 1; k <= 31; k++){
+    const D = C.days[k];
+    visits += D.named.size + D.le;
+    if (D.slips > 0) active++;
+  }
+  return {
+    key:C.key, cy:C.cy, cm:C.cm, label:`Tháng ${C.cm}/${C.cy}`,
+    startDn:C.startDn, endDn:C.endDn, len:C.endDn - C.startDn + 1,
+    from:C.minDn, to:C.maxDn, partial: C.maxDn < C.endDn,
+    visits, unique:C.named.size, le:C.le, slips:C.slips, active, days:C.days
+  };
+}
+
+// null = chưa có dữ liệu, undefined = ngoài chu kỳ
+function custDayVal(s, k){
+  if (k < 1 || k > s.len) return undefined;
+  if (s.startDn + k - 1 > s.to) return null;
+  const D = s.days[k];
+  return D.named.size + D.le;
+}
+
+function buildSalesCycles(recs, storeId){
+  const cycles = new Map();
+  for (const r of recs){
+    if (storeId && r.store !== storeId) continue;
+    const c = cycleOf(r.dt);
+    let C = cycles.get(c.key);
+    if (!C){
+      C = {key:c.key, cy:c.cy, cm:c.cm, startDn:c.startDn, endDn:c.endDn,
+           days: Array.from({length:32}, () => ({total:0, off:0, on:0, lnt:0, n:0, cats:{}})),
+           minDn:Infinity, maxDn:-Infinity};
+      cycles.set(c.key, C);
+    }
+    const dn = dayNum(r.dt), k = dn - C.startDn + 1;
+    if (k < 1 || k > 31) continue;
+    const D = C.days[k];
+    D.total += r.total; D.off += r.off; D.on += r.on; D.lnt += r.lnt; D.n++;
+    for (const [name, v] of Object.entries(r.cats)){
+      const e = D.cats[name] || (D.cats[name] = {off:0, on:0});
+      e.off += v.off; e.on += v.on;
+    }
+    C.minDn = Math.min(C.minDn, dn); C.maxDn = Math.max(C.maxDn, dn);
+  }
+  return cycles;
+}
+
+function salesStats(C){
+  const t = {total:0, off:0, on:0, lnt:0};
+  let active = 0;
+  const cats = {};
+  for (let k = 1; k <= 31; k++){
+    const D = C.days[k];
+    t.total += D.total; t.off += D.off; t.on += D.on; t.lnt += D.lnt;
+    if (D.n > 0) active++;
+    for (const [name, v] of Object.entries(D.cats)){
+      const e = cats[name] || (cats[name] = {off:0, on:0});
+      e.off += v.off; e.on += v.on;
+    }
+  }
+  return {
+    key:C.key, cy:C.cy, cm:C.cm, label:`Tháng ${C.cm}/${C.cy}`,
+    startDn:C.startDn, endDn:C.endDn, len:C.endDn - C.startDn + 1,
+    from:C.minDn, to:C.maxDn, partial: C.maxDn < C.endDn,
+    total:t.total, off:t.off, on:t.on, lnt:t.lnt, active,
+    perActive: active ? t.total / active : 0, cats, days:C.days
+  };
+}
+
+// field: 'total' | 'off' | 'on' | 'lnt'
+function salesDayVal(s, k, field){
+  if (k < 1 || k > s.len) return undefined;
+  if (s.startDn + k - 1 > s.to) return null;
+  return s.days[k][field];
+}
+/*CORE_END*/
+
+// ===== Giao diện =====
+const $ = id => document.getElementById(id);
+const PALETTE = ['#66CCFF','#0c3b57','#f5a524','#34c39b','#ff7a59','#8b7cf6','#2a7fb0','#b8c4cc'];
+const fmt = (x, dp=0) => Number(x).toLocaleString('vi-VN', {minimumFractionDigits:dp, maximumFractionDigits:dp});
+const pct = (x) => (x*100).toLocaleString('vi-VN', {minimumFractionDigits:1, maximumFractionDigits:1}) + '%';
+const compact = v => {
+  const a = Math.abs(v);
+  if (a >= 1e9) return (v/1e9).toFixed(1).replace('.',',') + ' tỷ';
+  if (a >= 1e6) return (v/1e6).toFixed(a >= 1e8 ? 0 : 1).replace('.',',') + ' tr';
+  return fmt(v);
+};
+const pad = n => String(n).padStart(2,'0');
+const fmtDn = dn => { const {y,m,d} = fromDayNum(dn); return `${pad(d)}/${pad(m)}/${y}`; };
+const ddmm = dn => { const {m,d} = fromDayNum(dn); return `${pad(d)}/${pad(m)}`; };
+const hexRgb = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
+const heatRamp = t => {   // 0 → xanh rất nhạt, 0.55 → #66CCFF, 1 → xanh navy
+  const stops = [[0,[238,249,255]],[0.55,[102,204,255]],[1,[12,59,87]]];
+  let i = 0; while (i < stops.length-2 && t > stops[i+1][0]) i++;
+  const [t0,c0] = stops[i], [t1,c1] = stops[i+1];
+  const u = Math.min(1, Math.max(0, (t-t0)/(t1-t0)));
+  return c0.map((v,j) => Math.round(v + (c1[j]-v)*u));
+};
+const heatBg = (_, t) => { if (t <= 0) return '#f2f7fa'; const [r,g,b] = heatRamp(t); return `rgb(${r},${g},${b})`; };
+
+const store = {
+  recsSales:new Map(), recsCust:new Map(), files:[],
+  storeId:'', sales:[], cust:[], storeList:[],
+  charts:{}, sel:{sales:new Set(), customers:new Set()}, known:{sales:new Set(), customers:new Set()},
+  cum:{sales:false, customers:false}, last:{sales:null, customers:null}
+};
+
+function mkChart(id, cfg){
+  if (store.charts[id]){ store.charts[id].destroy(); delete store.charts[id]; }
+  if (!cfg || typeof Chart === 'undefined') return;
+  store.charts[id] = new Chart($(id), cfg);
+}
+const chartOpts = (extra={}) => Object.assign({
+  responsive:true, maintainAspectRatio:false,
+  interaction:{mode:'index', intersect:false},
+  plugins:{legend:{position:'bottom', labels:{boxWidth:10, usePointStyle:true}}},
+  scales:{y:{beginAtZero:true}}
+}, extra);
+
+// ----- Nạp file -----
+async function handleFiles(fileList){
+  for (const f of [...fileList]){
+    const info = {name:f.name, type:null, rows:0, added:0, dup:0, skipped:0, error:null};
+    try{
+      const wb = XLSX.read(await f.arrayBuffer(), {type:'array', cellDates:true});
+      let done = false, lastErr = 'Không nhận diện được file';
+      for (const sn of wb.SheetNames){
+        const m = XLSX.utils.sheet_to_json(wb.Sheets[sn], {header:1, raw:true, defval:''});
+        const sres = parseSalesMatrix(m, f.name);
+        if (!sres.error){
+          info.type = 'doanh số'; info.rows = sres.records.length; info.skipped = sres.skipped;
+          for (const r of sres.records){
+            if (store.recsSales.has(r.key)) info.dup++; else info.added++;
+            store.recsSales.set(r.key, r);
+          }
+          done = true; break;
+        }
+        const cres = parseCustomerMatrix(m, f.name);
+        if (!cres.error){
+          info.type = 'phiếu khách'; info.rows = cres.records.length; info.skipped = cres.skipped;
+          for (const r of cres.records){
+            if (store.recsCust.has(r.key)) info.dup++; else info.added++;
+            store.recsCust.set(r.key, r);
+          }
+          done = true; break;
+        }
+        lastErr = cres.error;
+      }
+      if (!done) throw new Error(lastErr);
+    }catch(e){ info.error = e.message; }
+    store.files.push(info);
+  }
+  rebuild();
+}
+
+function rebuild(){
+  // Danh sách cửa hàng
+  const stores = new Map();
+  for (const r of store.recsSales.values()) if (!stores.has(r.store)) stores.set(r.store, r.storeName);
+  store.storeList = [...stores.entries()].map(([id,name]) => ({id, name})).sort((a,b) => a.id.localeCompare(b.id));
+  if (store.storeId && !stores.has(store.storeId)) store.storeId = '';
+
+  store.sales = [...buildSalesCycles([...store.recsSales.values()], store.storeId).values()]
+    .map(salesStats).sort((a,b) => a.key.localeCompare(b.key));
+  store.cust = [...buildCustomerCycles([...store.recsCust.values()]).values()]
+    .map(customerStats).sort((a,b) => a.key.localeCompare(b.key));
+
+  for (const p of ['sales','customers']){
+    const S = store[p === 'sales' ? 'sales' : 'cust'];
+    for (const s of S){
+      if (!store.known[p].has(s.key)){ store.known[p].add(s.key); store.sel[p].add(s.key); }
+    }
+    store.sel[p] = new Set([...store.sel[p]].filter(k => S.some(s => s.key === k)));
+  }
+  renderFiles();
+  renderAll();
+}
+
+function renderFiles(){
+  $('fileList').innerHTML = store.files.map(f => f.error
+    ? `<div class="err">✗ ${f.name}: ${f.error}</div>`
+    : `<div>✓ ${f.name} <span class="dim">(${f.type})</span>: ${fmt(f.rows)} dòng, thêm mới ${fmt(f.added)}, trùng ${fmt(f.dup)}${f.skipped ? `, bỏ qua ${fmt(f.skipped)} dòng không có ngày` : ''}</div>`
+  ).join('');
+}
+
+// ----- Khung tab -----
+function panelHTML(p){
+  const isSales = p === 'sales';
+  const word = isSales ? 'bán được nhiều hơn' : 'đông khách hơn';
+  const storeRow = isSales ? `
+    <label class="field">Cửa hàng
+      <select id="sales-store"></select>
+    </label>` : '';
+  const catsCard = isSales ? `
+  <section class="card">
+    <div class="head">
+      <h2>Cơ cấu ngành hàng</h2>
+      <p class="note" id="sales-catnote"></p>
+    </div>
+    <div class="tablewrap"><table id="sales-cats"></table></div>
+  </section>` : '';
+  return `
+  <div class="kpis" id="${p}-kpis"></div>
+  <section class="card">
+    <div class="head">
+      <div class="row between"><h2>${isSales ? 'Doanh số theo tháng' : 'Lượt khách theo tháng'}</h2>${storeRow}</div>
+      <p class="note" id="${p}-note"></p>
+    </div>
+    <div class="chart h240"><canvas id="${p}-ov"></canvas></div>
+    <div class="tablewrap"><table id="${p}-ovt"></table></div>
+  </section>
+  <section class="card">
+    <div class="head">
+      <h2>Lịch theo ngày, mọi tháng</h2>
+      <p class="note">Mỗi ô là một ngày trong chu kỳ. Ô càng đậm càng ${word} cùng ngày ở các tháng khác. Ô kẻ sọc là chưa có dữ liệu. Di chuột để xem số.</p>
+    </div>
+    <div class="heatwrap"><div id="${p}-heat" class="heat"></div></div>
+  </section>
+  <section class="card">
+    <div class="head">
+      <div class="row between">
+        <h2>So sánh các tháng đã chọn</h2>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="${p}-cum"> Cộng dồn theo ngày</label>
+          <button id="${p}-csv">Xuất CSV</button>
+        </div>
+      </div>
+      <div class="chips" id="${p}-chips"></div>
+      <p class="note">Bấm tháng để thêm hoặc bỏ khỏi biểu đồ. Dấu * là tháng chưa đủ chu kỳ.</p>
+    </div>
+    <div class="chart h320"><canvas id="${p}-line"></canvas></div>
+    <div class="tablewrap"><table id="${p}-daily"></table></div>
+  </section>${catsCard}`;
+}
+$('panel-sales').innerHTML = panelHTML('sales');
+$('panel-customers').innerHTML = panelHTML('customers');
+
+// ----- Vẽ -----
+if (typeof Chart !== 'undefined'){
+  Chart.defaults.font.family = '"Be Vietnam Pro", Arial, sans-serif';
+  Chart.defaults.color = '#4a6170';
+  Chart.defaults.borderColor = '#e3eef4';
+  Chart.defaults.plugins.tooltip.backgroundColor = '#0c3b57';
+  Chart.defaults.plugins.tooltip.padding = 10;
+  Chart.defaults.plugins.tooltip.cornerRadius = 8;
+}
+function statsOf(p){ return p === 'sales' ? store.sales : store.cust; }
+function valOf(p, s, k){ return p === 'sales' ? salesDayVal(s, k, 'total') : custDayVal(s, k); }
+function colorOf(p, s){ return PALETTE[statsOf(p).indexOf(s) % PALETTE.length]; }
+function labelOf(s){ return s.label + (s.partial ? ' *' : ''); }
+const COLOR = {sales:'#66CCFF', customers:'#0c3b57'};
+const UNIT = {sales:' đ', customers:''};
+
+function renderAll(){
+  // Dropdown cửa hàng
+  const sel = $('sales-store');
+  if (sel){
+    const all = store.storeList;
+    sel.innerHTML = `<option value="">Tất cả cửa hàng (${all.length})</option>` +
+      all.map(s => `<option value="${s.id}">${s.id} · ${s.name}</option>`).join('');
+    sel.value = store.storeId;
+    sel.disabled = all.length === 0;
+  }
+  renderPanel('sales');
+  renderPanel('customers');
+}
+
+function renderKpis(p){
+  const el = $(p+'-kpis'), S = statsOf(p);
+  if (!S.length){ el.innerHTML = ''; return; }
+  const cur = S[S.length-1], prev = S[S.length-2];
+  const delta = (a, b) => {
+    if (!prev || !b) return '<span class="dim">Chưa có tháng so sánh</span>';
+    const c = (a - b) / b;
+    return `<span class="${c>=0?'up':'down'}"><b>${c>=0?'▲ +':'▼ '}${pct(c)}</b></span> so với ${prev.label}`;
+  };
+  const partial = cur.partial ? ' · chưa đủ chu kỳ' : '';
+  let cards;
+  if (p === 'sales'){
+    cards = [
+      {lead:true, l:`Doanh số ${cur.label}`, v:fmt(cur.total)+' đ', d:delta(cur.total, prev && prev.total) + partial},
+      {l:'Tỷ trọng Online', v: cur.total ? pct(cur.on/cur.total) : '—', d:`Offline ${fmt(cur.off)} đ`},
+      {l:'LNT / doanh số', v: cur.total ? pct(cur.lnt/cur.total) : '—', d:`LNT ${fmt(cur.lnt)} đ`},
+      {l:'Doanh số TB / ngày bán', v: fmt(cur.perActive)+' đ', d:`${cur.active} ngày có bán`}
+    ];
+  } else {
+    cards = [
+      {lead:true, l:`Lượt khách ${cur.label}`, v:fmt(cur.visits), d:delta(cur.visits, prev && prev.visits) + partial},
+      {l:'Khách duy nhất', v:fmt(cur.unique), d:'Một người được tính 1 lần trong chu kỳ'},
+      {l:'Khách lẻ (lượt)', v:fmt(cur.le), d:`${fmt(cur.slips)} phiếu xuất`},
+      {l:'Ngày có khách', v:fmt(cur.active), d:`Trên ${cur.len} ngày của chu kỳ`}
+    ];
+  }
+  el.innerHTML = cards.map(c => `<div class="kpi ${c.lead?'lead':''}"><div class="l">${c.l}</div><div class="v">${c.v}</div><div class="d">${c.d}</div></div>`).join('');
+}
+
+function renderPanel(p){
+  const S = statsOf(p);
+  const isSales = p === 'sales';
+  $(p+'-cum').checked = store.cum[p];
+  renderKpis(p);
+
+  if (!S.length){
+    $(p+'-note').textContent = isSales
+      ? 'Chưa có dữ liệu doanh số. Tải file có cột "Tổng doanh số" ở phần trên.'
+      : 'Chưa có dữ liệu phiếu xuất. Tải file phiếu xuất ở phần trên.';
+    $(p+'-ovt').innerHTML = '';
+    $(p+'-heat').innerHTML = '';
+    $(p+'-chips').innerHTML = '';
+    $(p+'-daily').innerHTML = '';
+    mkChart(p+'-ov', null); mkChart(p+'-line', null);
+    if (isSales){ $('sales-cats').innerHTML = ''; $('sales-catnote').textContent = ''; }
+    store.last[p] = null;
+    return;
+  }
+
+  const partialTxt = S.filter(s => s.partial).map(s => `${s.label} đến ${fmtDn(s.to)}`);
+  $(p+'-note').textContent = partialTxt.length
+    ? `Chưa đủ chu kỳ: ${partialTxt.join('; ')}. Tổng của các tháng này sẽ thấp hơn thực tế.`
+    : 'Đã có đủ dữ liệu cho mọi tháng.';
+
+  // Bảng và biểu đồ tổng quan
+  let head, rows, ovCfg;
+  if (isSales){
+    head = ['Tháng','Khoảng ngày','Dữ liệu từ','Dữ liệu đến','Doanh số (đ)','Offline (đ)','Online (đ)','Online %','LNT (đ)','LNT / doanh số','TB / ngày bán (đ)','So tháng trước'];
+    rows = S.map((s,i) => {
+      const prev = S[i-1];
+      let chg = '<span class="dim">—</span>';
+      if (prev && prev.total > 0){
+        const c = (s.total - prev.total) / prev.total;
+        chg = `<span class="${c>=0?'pos':'neg'}">${c>=0?'+':''}${pct(c)}</span>`;
+      }
+      return `<tr><td><span class="dot" style="background:${colorOf(p,s)}"></span>${s.label}${s.partial?'<span class="tag">chưa đủ</span>':''}</td>
+        <td>${fmtDn(s.startDn)} – ${fmtDn(s.endDn)}</td><td>${fmtDn(s.from)}</td><td>${fmtDn(s.to)}</td>
+        <td><b>${fmt(s.total)}</b></td><td>${fmt(s.off)}</td><td>${fmt(s.on)}</td>
+        <td>${s.total ? pct(s.on/s.total) : '—'}</td>
+        <td>${fmt(s.lnt)}</td><td>${s.total ? pct(s.lnt/s.total) : '—'}</td>
+        <td>${fmt(s.perActive)}</td><td>${chg}</td></tr>`;
+    });
+    ovCfg = {type:'bar', data:{labels:S.map(labelOf), datasets:[
+        {label:'Offline', data:S.map(s=>s.off), backgroundColor:'#66CCFF', borderRadius:3, stack:'a'},
+        {label:'Online', data:S.map(s=>s.on), backgroundColor:'#0c3b57', borderRadius:3, stack:'a'}]},
+      options:chartOpts({scales:{x:{stacked:true}, y:{stacked:true, beginAtZero:true, ticks:{callback:compact}}},
+        plugins:{legend:{position:'bottom', labels:{boxWidth:10, usePointStyle:true}}, tooltip:{callbacks:{footer:items=>'Tổng: '+fmt(items.reduce((a,i)=>a+i.parsed.y,0))+' đ'}}}})};
+  } else {
+    head = ['Tháng','Khoảng ngày','Dữ liệu từ','Dữ liệu đến','Ngày có khách','Tổng lượt khách','Khách duy nhất','Khách lẻ','Số phiếu'];
+    rows = S.map(s => `<tr><td><span class="dot" style="background:${colorOf(p,s)}"></span>${s.label}${s.partial?'<span class="tag">chưa đủ</span>':''}</td>
+        <td>${fmtDn(s.startDn)} – ${fmtDn(s.endDn)}</td><td>${fmtDn(s.from)}</td><td>${fmtDn(s.to)}</td>
+        <td>${fmt(s.active)}</td><td><b>${fmt(s.visits)}</b></td><td>${fmt(s.unique)}</td>
+        <td>${fmt(s.le)}</td><td>${fmt(s.slips)}</td></tr>`);
+    ovCfg = {type:'bar', data:{labels:S.map(labelOf), datasets:[
+        {label:'Tổng lượt khách (cộng theo ngày)', data:S.map(s=>s.visits), backgroundColor:'#0c3b57', borderRadius:3},
+        {label:'Khách duy nhất trong chu kỳ', data:S.map(s=>s.unique), backgroundColor:'#66CCFF', borderRadius:3}]},
+      options:chartOpts()};
+  }
+  $(p+'-ovt').innerHTML = `<thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody>`;
+  mkChart(p+'-ov', ovCfg);
+
+  // Lịch nhiệt
+  let max = 0;
+  for (const s of S) for (let k=1;k<=31;k++){ const v = valOf(p,s,k); if (typeof v === 'number') max = Math.max(max, v); }
+  let hh = '<div class="hrow"><div class="hlab"></div>' + Array.from({length:31},(_,i)=>`<div class="hday">${i+1}</div>`).join('') + '</div>';
+  for (const s of S){
+    hh += `<div class="hrow"><div class="hlab">${labelOf(s)}</div>`;
+    for (let k=1;k<=31;k++){
+      const v = valOf(p,s,k);
+      if (v === undefined) hh += '<div class="hc off"></div>';
+      else if (v === null) hh += '<div class="hc nodata"></div>';
+      else {
+        const t = max ? v/max : 0;
+        hh += `<div class="hc" style="background:${heatBg(COLOR[p],t)}" title="${s.label} · ngày ${k} (${ddmm(s.startDn+k-1)}): ${fmt(v)}${UNIT[p]}"></div>`;
+      }
+    }
+    hh += '</div>';
+  }
+  $(p+'-heat').innerHTML = hh;
+
+  // Chọn tháng
+  const sel = store.sel[p];
+  const allOn = S.every(s => sel.has(s.key));
+  $(p+'-chips').innerHTML = S.map(s => {
+    const on = sel.has(s.key);
+    return `<button class="chip ${on?'on':''}" data-key="${s.key}" aria-pressed="${on}"><i style="background:${colorOf(p,s)}"></i>${labelOf(s)}</button>`;
+  }).join('') + `<button class="chip ghost" data-all="1">${allOn ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</button>`;
+
+  const selected = S.filter(s => sel.has(s.key));
+  if (!selected.length){
+    mkChart(p+'-line', null);
+    $(p+'-daily').innerHTML = '<tr><td class="dim" style="text-align:left">Chọn ít nhất một tháng để so sánh.</td></tr>';
+    store.last[p] = null;
+    if (isSales) renderCats(selected);
+    return;
+  }
+  const cum = store.cum[p];
+  const series = selected.map(s => {
+    let run = 0; const out = [];
+    for (let k=1;k<=31;k++){
+      const v = valOf(p,s,k);
+      if (v == null){ out.push(null); continue; }
+      run += v; out.push(cum ? run : v);
+    }
+    return out;
+  });
+  const maxLen = Math.max(...selected.map(s => s.len));
+  const yTitle = (cum ? 'Lũy kế ' : '') + (isSales ? 'doanh số (đ)' : 'lượt khách');
+  mkChart(p+'-line', {
+    type:'line',
+    data:{
+      labels:Array.from({length:31},(_,i)=>String(i+1)),
+      datasets:selected.map((s,i)=>({label:labelOf(s), data:series[i], borderColor:colorOf(p,s), backgroundColor:colorOf(p,s), tension:0.25, pointRadius:1.5, borderWidth:2, spanGaps:false}))
+    },
+    options:chartOpts({scales:{
+      y:{beginAtZero:true, ticks:{callback: isSales ? compact : fmt}, title:{display:true, text:yTitle}},
+      x:{title:{display:true, text:'Ngày thứ trong chu kỳ (1 = ngày 20)'}}
+    }})
+  });
+
+  const dh = '<thead><tr><th>Ngày thứ</th>' + selected.map(s => `<th><span class="dot" style="background:${colorOf(p,s)}"></span>${s.label}</th>`).join('') + '</tr></thead>';
+  let body = '';
+  const totals = selected.map(() => 0);
+  const lastVals = selected.map(() => null);
+  for (let k=1;k<=maxLen;k++){
+    body += `<tr><td>${k}</td>`;
+    selected.forEach((s,i) => {
+      const v = series[i][k-1];
+      if (v == null) body += `<td>${k <= s.len ? '<span class="dim">chưa có</span>' : ''}</td>`;
+      else { body += `<td>${fmt(v)}</td>`; lastVals[i] = v; if (!cum) totals[i] += v; }
+    });
+    body += '</tr>';
+  }
+  const totalVals = cum ? lastVals : totals;
+  body += `<tr class="total"><td>${cum ? 'Lũy kế cuối' : 'Tổng'}</td>` + totalVals.map(v => `<td>${v==null?'':fmt(v)}</td>`).join('') + '</tr>';
+  $(p+'-daily').innerHTML = dh + '<tbody>' + body + '</tbody>';
+
+  store.last[p] = {selected, series, cum, maxLen, totalVals};
+  if (isSales) renderCats(selected);
+}
+
+// Bảng ngành hàng cho các tháng đã chọn
+function renderCats(selected){
+  const tbl = $('sales-cats'), note = $('sales-catnote');
+  if (!selected.length){ tbl.innerHTML = ''; note.textContent = 'Chọn tháng để xem cơ cấu ngành hàng.'; return; }
+  const names = new Set();
+  selected.forEach(s => Object.keys(s.cats).forEach(n => names.add(n)));
+  const catTotal = (s, n) => { const c = s.cats[n]; return c ? c.off + c.on : 0; };
+  const grand = n => selected.reduce((a,s) => a + catTotal(s,n), 0);
+  const sumAll = selected.reduce((a,s) => a + Object.keys(s.cats).reduce((b,n)=>b+catTotal(s,n),0), 0);
+  const order = [...names].sort((a,b) => grand(b) - grand(a));
+  const head = `<thead><tr><th>Ngành hàng</th>${selected.map(s=>`<th>${s.label}</th>`).join('')}<th>Tổng kỳ chọn</th><th>Tỷ trọng</th><th>Online %</th></tr></thead>`;
+  const body = order.map(n => {
+    const g = grand(n);
+    const on = selected.reduce((a,s)=>a+((s.cats[n]||{on:0}).on),0);
+    return `<tr><td>${n}</td>${selected.map(s=>`<td>${fmt(catTotal(s,n))}</td>`).join('')}<td><b>${fmt(g)}</b></td><td>${sumAll ? pct(g/sumAll) : '—'}</td><td>${g ? pct(on/g) : '—'}</td></tr>`;
+  }).join('');
+  const totalRow = `<tr class="total"><td>Tổng các ngành hàng</td>${selected.map(s=>`<td>${fmt(Object.keys(s.cats).reduce((b,n)=>b+catTotal(s,n),0))}</td>`).join('')}<td>${fmt(sumAll)}</td><td>100%</td><td></td></tr>`;
+  tbl.innerHTML = head + '<tbody>' + body + totalRow + '</tbody>';
+  const diff = sumAll - selected.reduce((a,s) => a + s.total, 0);
+  note.textContent = `Tổng các ngành hàng lệch ${fmt(Math.abs(diff))} đ so với "Tổng doanh số" của các tháng này. Nguồn dữ liệu có chênh lệch nhỏ theo ngày, phần tổng doanh số được dùng làm số chính thức.`;
+}
+
+function exportCsv(p){
+  const L = store.last[p];
+  if (!L) return;
+  const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+  const lines = [['Ngày thứ', ...L.selected.map(s => s.label)].map(esc).join(',')];
+  for (let k=1;k<=L.maxLen;k++) lines.push([k, ...L.series.map(sr => sr[k-1] ?? '')].map(esc).join(','));
+  lines.push([L.cum ? 'Lũy kế cuối' : 'Tổng', ...L.totalVals.map(v => v ?? '')].map(esc).join(','));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${p === 'sales' ? 'doanh-so' : 'luot-khach'}${L.cum ? '-cong-don' : ''}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ----- Sự kiện -----
+const drop = $('drop');
+drop.addEventListener('click', () => $('fileInput').click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); handleFiles(e.dataTransfer.files); });
+$('fileInput').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+$('clearBtn').addEventListener('click', () => {
+  store.recsSales.clear(); store.recsCust.clear(); store.files = []; store.storeId = '';
+  for (const p of ['sales','customers']){ store.known[p].clear(); store.sel[p].clear(); }
+  rebuild();
+});
+
+// Chọn cửa hàng (chỉ tab Doanh số)
+document.addEventListener('change', e => {
+  if (e.target.id === 'sales-store'){
+    store.storeId = e.target.value;
+    store.known.sales.clear(); store.sel.sales.clear();
+    rebuild();
+  }
+});
+
+for (const p of ['sales','customers']){
+  $(p+'-cum').addEventListener('change', e => { store.cum[p] = e.target.checked; renderPanel(p); });
+  $(p+'-csv').addEventListener('click', () => exportCsv(p));
+  $(p+'-chips').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const sel = store.sel[p], S = statsOf(p);
+    if (b.dataset.all){
+      const allOn = S.every(s => sel.has(s.key));
+      S.forEach(s => allOn ? sel.delete(s.key) : sel.add(s.key));
+    } else if (b.dataset.key){
+      sel.has(b.dataset.key) ? sel.delete(b.dataset.key) : sel.add(b.dataset.key);
+    }
+    renderPanel(p);
+  });
+}
+
+document.querySelectorAll('nav.tabs button').forEach(btn => btn.addEventListener('click', () => {
+  const t = btn.dataset.tab;
+  document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+  $('panel-sales').hidden = t !== 'sales';
+  $('panel-customers').hidden = t !== 'customers';
+}));
+
+rebuild();
+</script>
+</body>
+</html>
