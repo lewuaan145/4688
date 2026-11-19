@@ -144,6 +144,7 @@ tr.total td{font-weight:700;border-top:2px solid var(--navy);background:#fff}
     <input id="fileInput" type="file" multiple accept=".xlsx,.xls,.csv" hidden>
     <div class="row" style="margin-top:12px"><button id="clearBtn">Xóa toàn bộ dữ liệu</button></div>
     <div id="fileList" class="files"></div>
+    <div id="saveStatus" class="note" style="margin-top:10px"></div>
   </section>
 
   <div id="panel-sales" class="panel"></div>
@@ -465,6 +466,68 @@ const heatRamp = t => {   // 0 → xanh rất nhạt, 0.55 → #66CCFF, 1 → xa
 };
 const heatBg = (_, t) => { if (t <= 0) return '#f2f7fa'; const [r,g,b] = heatRamp(t); return `rgb(${r},${g},${b})`; };
 
+// ----- Lưu trữ trên trình duyệt (IndexedDB, đủ lớn cho file nhiều dòng) -----
+const DB_NAME = 'chu-ky-thang', DB_STORE = 'data';
+function openDb(){
+  return new Promise((res, rej) => {
+    if (!window.indexedDB) return rej(new Error('Trình duyệt không hỗ trợ IndexedDB'));
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function dbRun(mode, fn){
+  const db = await openDb();
+  try{
+    return await new Promise((res, rej) => {
+      const tx = db.transaction(DB_STORE, mode);
+      const out = fn(tx.objectStore(DB_STORE));
+      tx.oncomplete = () => res(out && out.result);
+      tx.onerror = () => rej(tx.error);
+      tx.onabort = () => rej(tx.error);
+    });
+  } finally { db.close(); }
+}
+const dbGet = key => dbRun('readonly', os => os.get(key));
+const dbPut = (key, val) => dbRun('readwrite', os => os.put(val, key));
+const dbDel = key => dbRun('readwrite', os => os.delete(key));
+
+function setStatus(text, warn){
+  const el = $('saveStatus');
+  el.textContent = text;
+  el.style.color = warn ? 'var(--bad)' : '';
+}
+const fmtTime = t => new Date(t).toLocaleString('vi-VN', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'});
+
+async function saveAll(){
+  try{
+    const savedAt = Date.now();
+    await dbPut('sales', [...store.recsSales.values()]);
+    await dbPut('cust', [...store.recsCust.values()]);
+    await dbPut('files', {files: store.files, savedAt});
+    store.savedAt = savedAt;
+    setStatus(`Đã lưu trên trình duyệt này lúc ${fmtTime(savedAt)}. Lần mở sau sẽ tự nạp lại dữ liệu.`);
+  }catch(e){
+    setStatus('Không lưu được dữ liệu trên trình duyệt này (có thể đang ở chế độ riêng tư). Dữ liệu chỉ còn trong phiên hiện tại.', true);
+  }
+}
+
+async function loadSaved(){
+  try{
+    const sales = (await dbGet('sales')) || [];
+    const cust = (await dbGet('cust')) || [];
+    const f = await dbGet('files');
+    sales.forEach(r => store.recsSales.set(r.key, r));
+    cust.forEach(r => store.recsCust.set(r.key, r));
+    if (f){ store.files = f.files || []; store.savedAt = f.savedAt; }
+    return sales.length + cust.length > 0;
+  }catch(e){
+    setStatus('Không đọc được dữ liệu đã lưu trên trình duyệt này.', true);
+    return false;
+  }
+}
+
 const store = {
   recsSales:new Map(), recsCust:new Map(), files:[],
   storeId:'', sales:[], cust:[], storeList:[],
@@ -518,6 +581,7 @@ async function handleFiles(fileList){
     store.files.push(info);
   }
   rebuild();
+  await saveAll();
 }
 
 function rebuild(){
@@ -892,10 +956,16 @@ drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add(
 drop.addEventListener('dragleave', () => drop.classList.remove('over'));
 drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); handleFiles(e.dataTransfer.files); });
 $('fileInput').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
-$('clearBtn').addEventListener('click', () => {
-  store.recsSales.clear(); store.recsCust.clear(); store.files = []; store.storeId = '';
+$('clearBtn').addEventListener('click', async () => {
+  store.recsSales.clear(); store.recsCust.clear(); store.files = []; store.storeId = ''; store.savedAt = null;
   for (const p of ['sales','customers']){ store.known[p].clear(); store.sel[p].clear(); }
   rebuild();
+  try{
+    await dbDel('sales'); await dbDel('cust'); await dbDel('files');
+    setStatus('Đã xóa toàn bộ dữ liệu, cả trên trình duyệt này.');
+  }catch(e){
+    setStatus('Đã xóa trong phiên hiện tại nhưng không xóa được bản lưu trên trình duyệt.', true);
+  }
 });
 
 // Chọn cửa hàng (chỉ tab Doanh số)
@@ -931,6 +1001,14 @@ document.querySelectorAll('nav.tabs button').forEach(btn => btn.addEventListener
 }));
 
 rebuild();
+// Xin quyền lưu bền để trình duyệt không tự xóa dữ liệu khi thiếu bộ nhớ (không bắt buộc)
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+loadSaved().then(has => {
+  if (has){
+    rebuild();
+    setStatus(`Đã nạp dữ liệu lưu từ lần trước (lưu lúc ${fmtTime(store.savedAt)}).`);
+  }
+});
 </script>
 </body>
 </html>
