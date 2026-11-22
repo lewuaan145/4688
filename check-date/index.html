@@ -319,6 +319,17 @@
     return isNaN(parsed) ? null : parsed;
   }
 
+  // Hiển thị HSD dạng dd/mm/yyyy (kể cả khi ô Excel là số serial, vd "46150")
+  function fmtHan(v){
+    const s = norm(v);
+    if(s==="") return "";
+    if(/^\d{4,6}(\.\d+)?$/.test(s)){
+      const d = XLSX.SSF.parse_date_code(Number(s));
+      if(d){ const p = n=>String(n).padStart(2,"0"); return p(d.d)+"/"+p(d.m)+"/"+d.y; }
+    }
+    return s;
+  }
+
   function daysLeft(dateObj){
     if(!dateObj) return null;
     const today = new Date();
@@ -422,7 +433,7 @@
         maSanPham,
         maThamChieu: norm(get("maThamChieu")),
         tenSanPham,
-        hanSuDung: norm(hanRaw),
+        hanSuDung: fmtHan(hanRaw),
         ngaySDConLai: dLeftLive,
         ngaySDConLaiStored: dLeftStored,
         loaiSale: (function(){
@@ -804,7 +815,7 @@
     { header:"Mã sản phẩm", get:r=>r.maSanPham },
     { header:"Mã tham chiếu", get:r=>r.maThamChieu },
     { header:"Tên sản phẩm", get:r=>r.tenSanPham },
-    { header:"Hạn sử dụng", get:r=>r.hanSuDung },
+    { header:"Hạn sử dụng", get:r=>fmtHan(r.hanSuDung) },
     { header:"Ngày SD còn lại", get:r=>r.ngaySDConLai },
     { header:"Loại Sale", get:r=>r.loaiSale },
     { header:"Giá bán", get:r=>r.giaBan },
@@ -817,7 +828,7 @@
   const TONGHOP_EXPORT_COLS = [
     { header:"Mã sản phẩm", get:r=>r.maSanPham },
     { header:"Tên sản phẩm", get:r=>r.tenSanPham },
-    { header:"Hạn sử dụng", get:r=>r.hanSuDung },
+    { header:"Hạn sử dụng", get:r=>fmtHan(r.hanSuDung) },
     { header:"Ngày SD còn lại", get:r=>r.ngaySDConLai },
     { header:"Loại Sale", get:r=>r.loaiSale },
     { header:"Giá bán", get:r=>r.giaBan },
@@ -916,7 +927,9 @@
       + '<div class="name">'+escapeHtml(r.tenSanPham || "(không tên)")+'</div>'
       + '<div class="meta">'
         + '<span>Mã ĐD: '+escapeHtml(r.maDinhDanh)+'</span>'
-        + '<span>HSD: '+escapeHtml(r.hanSuDung)+'</span>'
+        + (r.maSanPham ? '<span>Mã SP: '+escapeHtml(r.maSanPham)+'</span>' : "")
+        + (r.maThamChieu ? '<span>Mã tham chiếu: '+escapeHtml(r.maThamChieu)+'</span>' : "")
+        + '<span>HSD: '+escapeHtml(fmtHan(r.hanSuDung))+'</span>'
         + (ton!=="" ? '<span>Tồn kho tổng: '+escapeHtml(ton)+'</span>' : "")
       + '</div>'
       + '<div class="meta">'+priceLineHtml(r)+'</div>'
@@ -1009,7 +1022,8 @@
       + '<div class="name">'+escapeHtml(r.tenSanPham || "(không tên)")+'</div>'
       + '<div class="meta">'
         + '<span>Mã hàng: '+escapeHtml(r.maSanPham)+'</span>'
-        + '<span>HSD: '+escapeHtml(r.hanSuDung)+'</span>'
+        + (r.maThamChieu ? '<span>Mã tham chiếu: '+escapeHtml(r.maThamChieu)+'</span>' : "")
+        + '<span>HSD: '+escapeHtml(fmtHan(r.hanSuDung))+'</span>'
         + (ton!=="" ? '<span>Tồn kho tổng: '+escapeHtml(ton)+'</span>' : "")
       + '</div>'
       + '<div class="meta">'+priceLineHtml(r)+'</div>'
